@@ -1,0 +1,9 @@
+# Render blueprint: New -> Blueprint -> pick this repository.
+services:
+  - type: web
+    name: khabardar
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py
+    healthCheckPath: /api/villages

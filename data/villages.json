@@ -1,0 +1,29 @@
+{
+  "_note": "Demo villages with approximate coordinates. Safe points are DEMO PLACEHOLDERS — replace them with PDMA-designated shelters before any real use.",
+  "villages": [
+    {"id": "mingora", "name": "Mingora", "name_ur": "مینگورہ", "district": "Swat", "lat": 34.7717, "lon": 72.3600,
+     "safe": {"name": "Govt. High School", "name_ur": "سرکاری ہائی اسکول", "lat": 34.7840, "lon": 72.3740}},
+    {"id": "bahrain", "name": "Bahrain", "name_ur": "بحرین", "district": "Swat", "lat": 35.2072, "lon": 72.5464,
+     "safe": {"name": "Hillside Mosque Ground", "name_ur": "پہاڑی مسجد کا میدان", "lat": 35.2150, "lon": 72.5560}},
+    {"id": "madyan", "name": "Madyan", "name_ur": "مدین", "district": "Swat", "lat": 35.1386, "lon": 72.5361,
+     "safe": {"name": "Upper Bazaar Ground", "name_ur": "اوپر بازار کا میدان", "lat": 35.1460, "lon": 72.5450}},
+    {"id": "kalam", "name": "Kalam", "name_ur": "کالام", "district": "Swat", "lat": 35.4875, "lon": 72.5847,
+     "safe": {"name": "Govt. College", "name_ur": "سرکاری کالج", "lat": 35.4950, "lon": 72.5930}},
+    {"id": "daggar", "name": "Daggar", "name_ur": "ڈگر", "district": "Buner", "lat": 34.5040, "lon": 72.4840,
+     "safe": {"name": "District HQ Hospital Ground", "name_ur": "ضلعی ہسپتال کا میدان", "lat": 34.5120, "lon": 72.4950}},
+    {"id": "pirbaba", "name": "Pir Baba", "name_ur": "پیر بابا", "district": "Buner", "lat": 34.4800, "lon": 72.4500,
+     "safe": {"name": "Hilltop School", "name_ur": "پہاڑی اسکول", "lat": 34.4880, "lon": 72.4610}},
+    {"id": "alpuri", "name": "Alpuri", "name_ur": "الپوری", "district": "Shangla", "lat": 34.9033, "lon": 72.6417,
+     "safe": {"name": "Govt. Degree College", "name_ur": "سرکاری ڈگری کالج", "lat": 34.9100, "lon": 72.6520}},
+    {"id": "nowshera", "name": "Nowshera", "name_ur": "نوشہرہ", "district": "Nowshera", "lat": 34.0153, "lon": 71.9747,
+     "safe": {"name": "Cantonment Ground", "name_ur": "کینٹ کا میدان", "lat": 34.0290, "lon": 71.9900}},
+    {"id": "marala", "name": "Marala (Chenab)", "name_ur": "مرالہ (چناب)", "district": "Sialkot", "lat": 32.6730, "lon": 74.4640,
+     "safe": {"name": "Raised Canal Colony", "name_ur": "نہری کالونی", "lat": 32.6850, "lon": 74.4800}},
+    {"id": "wazirabad", "name": "Wazirabad", "name_ur": "وزیرآباد", "district": "Gujranwala", "lat": 32.4430, "lon": 74.1200,
+     "safe": {"name": "Govt. Boys School", "name_ur": "سرکاری بوائز اسکول", "lat": 32.4540, "lon": 74.1330}},
+    {"id": "sukkur", "name": "Sukkur", "name_ur": "سکھر", "district": "Sukkur", "lat": 27.7052, "lon": 68.8574,
+     "safe": {"name": "Raised Relief Camp Site", "name_ur": "امدادی کیمپ", "lat": 27.7170, "lon": 68.8700}},
+    {"id": "dadu", "name": "Dadu", "name_ur": "دادو", "district": "Dadu", "lat": 26.7319, "lon": 67.7750,
+     "safe": {"name": "Embankment Relief Point", "name_ur": "پشتے پر امدادی مقام", "lat": 26.7430, "lon": 67.7890}}
+  ]
+}
