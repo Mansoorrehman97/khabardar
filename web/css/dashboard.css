@@ -26,6 +26,10 @@ a.link{display:inline-block;text-decoration:none}
 .map-legend{position:absolute;left:10px;bottom:10px;z-index:500;background:rgba(8,18,33,.9);padding:7px 10px;border-radius:8px;font-size:12px;display:flex;gap:10px;flex-wrap:wrap;max-width:calc(100% - 20px)}
 .map-hint{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:500;background:rgba(8,18,33,.9);padding:6px 12px;border-radius:999px;font-size:12px;color:var(--muted);white-space:nowrap}
 .replay-banner{position:absolute;bottom:48px;left:50%;transform:translateX(-50%);z-index:500;background:#13305e;border:1px solid #7fb2ff;color:#e3eeff;padding:6px 14px;border-radius:999px;font-size:13px;font-weight:700;white-space:nowrap}
+.fxbar{position:absolute;left:10px;right:10px;bottom:44px;z-index:650;background:rgba(8,18,33,.95);border:1px solid #7fb2ff;border-radius:10px;padding:7px 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.fxbar input[type=range]{flex:1;min-width:160px}
+.fxbar #fxTime{font-variant-numeric:tabular-nums;color:#cfe1ff;min-width:190px}
+.fxbar .small{flex-basis:100%}
 .layers{position:absolute;top:10px;right:10px;z-index:600;background:rgba(8,18,33,.94);border:1px solid var(--line);border-radius:10px;font-size:12.5px;max-width:270px}
 .layers-h{padding:7px 10px;font-weight:800;cursor:pointer;user-select:none}
 .layers-body{padding:0 10px 9px;display:flex;flex-direction:column;gap:3px}
@@ -113,7 +117,7 @@ select,input[type=range]{background:var(--panel2);color:var(--ink);border:1px so
 .bottom{display:grid;grid-template-columns:1fr auto;gap:8px;padding:0 12px 6px;height:96px}
 .log{background:#081221;border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:12px;overflow:auto;font-family:Consolas,monospace;color:#cfe0f2}
 .log div{white-space:nowrap}
-.actions{display:grid;grid-template-columns:1fr 1fr;gap:5px;align-content:center}
+.actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;align-content:center}
 .attrib{grid-column:1/-1;font-size:10px;color:#6f86a0;margin-top:-3px}
 .fl{display:inline-block;width:18px;height:0;border-top:3px dashed #f28c28;margin-right:5px;vertical-align:3px}
 .flowline{stroke-dasharray:10 8;animation:flow 0.9s linear infinite}

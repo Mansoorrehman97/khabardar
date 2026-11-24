@@ -22,6 +22,17 @@ const BODY_GO = {
   ur: "خبردار! {village} میں سیلاب آ رہا ہے۔ فوراً اونچی جگہ {safe} پہنچیں۔ گھر والوں، کاغذات اور دوائیوں کو ساتھ لیں۔"
 };
 
+/* "All clear": the danger has passed. */
+const CLEAR_TEXT = {
+  title: { en: "ALL CLEAR", ur: "خطرہ ٹل گیا" },
+  body: { en: "The flood danger in {village} has passed. You can return home carefully. Follow instructions from local officials and stay away from fast water.",
+          ur: "{village} میں سیلاب کا خطرہ ٹل گیا ہے۔ احتیاط سے گھر واپس جا سکتے ہیں۔ مقامی حکام کی ہدایات پر عمل کریں اور تیز پانی سے دور رہیں۔" }
+};
+function clearText(v, lang) {
+  const l = lang === "en" ? "en" : "ur";
+  return { title: CLEAR_TEXT.title[l], body: CLEAR_TEXT.body[l].replace("{village}", l === "en" ? v.name : v.name_ur || v.name) };
+}
+
 function buildTexts(level, v) {
   const body = level === "watch" ? BODY_PREPARE : BODY_GO;
   const out = {};
@@ -143,11 +154,12 @@ function scoreOf(s, v) {
   const wet = s.nasa_soil == null ? 1 : 1 + clamp((s.nasa_soil - 0.2) / 0.25, 0, 1) * 0.5;
   const terrain = hz.includes("urban") ? 1.3 : hz.includes("flash") ? 1.25 : 1;   // fast run-off: steep valleys, paved cities
   const P = {};
-  P.rain = (r1h * 6 + (s.rain_24h || 0) * 1.2) * wet * terrain;
+  // calibrated on the 2025 monsoon (forecast issued a day earlier): Evacuate needs about 123 mm in a day, or less with a heavy hourly burst
+  P.rain = (r1h * 3 + (s.rain_24h || 0) * 0.65) * wet * terrain;
   const river3 = s.river_ratio == null ? 0 : Math.max(0, (s.river_ratio - 1) * 60);
   const river7 = s.river_peak7_ratio == null ? 0 : Math.max(0, (s.river_peak7_ratio - 1) * 60 * 0.7);   // further ahead = less certain
   P.river = Math.max(river3, river7);
-  P.torrent = hz.includes("torrent") && s.up_rain_24h != null ? (Math.max(s.up_rain_max_1h || 0, 0) * 6 + s.up_rain_24h * 1.2) * 0.9 : 0;
+  P.torrent = hz.includes("torrent") && s.up_rain_24h != null ? (Math.max(s.up_rain_max_1h || 0, 0) * 3 + s.up_rain_24h * 0.65) * 0.9 : 0;
   P.glof = hz.includes("glof") && s.tmax_3d != null ? clamp((s.tmax_3d - v.heat + 2) * 12, 0, 70) : 0;
   P.storm = hz.includes("coastal") && s.gust_3d != null ? clamp((s.gust_3d - 42) * 1.25, 0, 100) : 0;
   // satellite: a little flood water (1-5 % of the area within 6 km) = Watch; 5 % = Warning; about 13 % or more = Evacuate
@@ -284,12 +296,41 @@ function newRoomCode() {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function publish(room, obj) {
+/* ---- Signed control messages: protection against fake alerts --------------------------------------------------
+   Only the control room holds the private key (made in its browser, never sent anywhere). Its public key travels in the
+   QR code, so every phone can check that an alert, reset, rescue or all-clear really came from that control room.
+   Anything without a valid signature is ignored. Old signed messages cannot be replayed later (they carry their time). */
+const SIGNED_TYPES = ["alert", "reset", "scenario", "rescue", "allclear"];
+const canSign = () => !!(window.crypto && crypto.subtle);
+const b64u = {
+  enc: (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""),
+  dec: (s) => Uint8Array.from(atob(String(s).replace(/-/g, "+").replace(/_/g, "/") + "===".slice((String(s).length + 3) % 4)), (c) => c.charCodeAt(0))
+};
+function canon(o) {   // the exact text that is signed: keys sorted, without the signature and receive-time fields
+  if (Array.isArray(o)) return "[" + o.map(canon).join(",") + "]";
+  if (o && typeof o === "object") return "{" + Object.keys(o).filter((k) => k !== "sig" && k[0] !== "_" && o[k] !== undefined).sort().map((k) => JSON.stringify(k) + ":" + canon(o[k])).join(",") + "}";
+  return JSON.stringify(o);
+}
+async function importPublicKey(k) { return crypto.subtle.importKey("raw", b64u.dec(k), { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]); }
+async function verifyMsg(pubKey, m) {
+  if (!m || !m.sig || !pubKey) return false;
+  try { return await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, pubKey, b64u.dec(m.sig), new TextEncoder().encode(canon(m))); }
+  catch (e) { return false; }
+}
+
+/* Send a message to the room. The control room sets window.KH_SIGNER, which signs control messages automatically.
+   opts.noSign / opts.untrusted are only used by the "fake alert test". */
+async function publish(room, obj, opts = {}) {
   obj.t = obj.t || Date.now() / 1000;
+  if (!opts.noSign && window.KH_SIGNER && SIGNED_TYPES.includes(obj.type) && !obj.sig) {
+    try { obj.sig = await window.KH_SIGNER(obj); } catch (e) { /* signing not available */ }
+  }
+  const headers = opts.untrusted ? { "X-Khabardar-Untrusted": "1" } : {};
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const r = await fetch(`${relayBase()}/${topicFor(room)}`, { method: "POST", body: JSON.stringify(obj) });
+      const r = await fetch(`${relayBase()}/${topicFor(room)}`, { method: "POST", body: JSON.stringify(obj), headers });
       if (r.ok) return true;
+      if (r.status === 403) return opts.untrusted ? "blocked" : false;
       if (r.status !== 429 && r.status < 500) return false;
     } catch (e) { /* network hiccup: retry */ }
     await sleep(900 * (attempt + 1));

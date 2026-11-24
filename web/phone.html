@@ -107,6 +107,17 @@
   <button id="stopBtn" class="ghost light" data-t="stop">Stop siren</button>
 </section>
 
+<!-- 3b. ALL CLEAR -->
+<section id="clear" class="screen allclear" hidden>
+  <div class="demo-tag" id="cDemo" hidden>DEMO</div>
+  <div class="shield">
+    <div class="shield-icon">✓</div>
+    <h2 id="cTitle">ALL CLEAR</h2>
+    <p id="cBody"></p>
+  </div>
+  <button id="clearOk" class="big green" data-t="ok">OK</button>
+</section>
+
 <!-- 4. After answering -->
 <section id="done" class="screen" hidden>
   <div class="shield">
@@ -134,6 +145,7 @@
 </section>
 
 <script src="js/config.js"></script>
+<script src="js/safepoints.js"></script>
 <script src="js/villages.js"></script>
 <script src="js/nasa-colormaps.js"></script>
 <script src="js/common.js"></script>

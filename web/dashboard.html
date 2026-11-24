@@ -61,6 +61,14 @@
       </div>
     </div>
     <div class="replay-banner" id="replayBanner" hidden></div>
+    <div class="fxbar" id="fxBar" hidden>
+      <button class="mini" id="fxPlay">❚❚ Pause</button>
+      <input type="range" id="fxSlider" min="0" max="72" value="0">
+      <b id="fxTime">—</b>
+      <select id="fxSpeed" class="small-select"><option value="1500">slow</option><option value="800" selected>normal</option><option value="350">fast</option></select>
+      <button class="mini" id="fxStop">End replay</button>
+      <div class="small muted" id="fxNote">Uses only the forecast that was issued about one day earlier — what Khabardar could really have known at that hour.</div>
+    </div>
     <div class="map-legend">
       <span><i class="dot normal"></i>Normal</span>
       <span><i class="dot watch"></i>Watch</span>
@@ -112,6 +120,10 @@
       </div>
       <div class="preview" id="preview"></div>
       <button class="send" id="sendBtn">SEND ALERT</button>
+      <div class="row" style="justify-content:space-between">
+        <button class="mini ok" id="clearBtn" title="Tell phones in the selected places that the danger has passed">Send ALL CLEAR</button>
+        <span class="small muted" id="signState">Alerts are digitally signed</span>
+      </div>
       <div class="send-result" id="sendResult"></div>
     </div>
 
@@ -172,6 +184,7 @@
     <button class="mini" id="dummyBtn" title="Dummy phones across Pakistan that receive alerts and answer automatically (clearly labelled DUMMY)">Dummy phones: ON</button>
     <button class="mini" id="simBtn" title="Adds 25 clearly-labelled SIMULATED phones around the selected places (only on this screen)">+25 crowd (SIM)</button>
     <button class="mini" id="replayBtn">Upstream replay</button>
+    <button class="mini" id="fakeBtn" title="Sends an alert that is NOT signed by this control room, like an attacker would — phones must ignore it">Fake-alert test</button>
     <button class="mini danger" id="resetBtn">Reset demo</button>
   </div>
   <div class="attrib">Rain: Open-Meteo.com (CC BY 4.0) · River discharge: GloFAS, Copernicus EMS, via Open-Meteo Flood API · NASA GIBS / EOSDIS: MODIS flood product (LANCE), GPM IMERG, SMAP L4, VIIRS · NASA EONET · Map © OpenStreetMap contributors · Relay: <span id="relayName">ntfy.sh</span></div>
@@ -195,6 +208,7 @@
 <script src="vendor/leaflet.js"></script>
 <script src="vendor/qrcode.min.js"></script>
 <script src="js/config.js"></script>
+<script src="js/safepoints.js"></script>
 <script src="js/villages.js"></script>
 <script src="js/nasa-colormaps.js"></script>
 <script src="js/common.js"></script>

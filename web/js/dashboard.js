@@ -5,7 +5,7 @@ const S = {
   selected: new Set(), mode: "villages", zoneCenter: null, radiusKm: 20,
   markers: {}, responderMarkers: {}, rescueMarkers: {}, rescueLines: {}, zoneCircle: null, nasaLayers: {}, layers: {},
   tab: "rescue", province: "all",
-  auto: null, pendingAuto: null, autoCancelled: {}, historyReady: false
+  auto: null, pendingAuto: null, autoCancelled: {}, historyReady: false, clears: [], fx: null
 };
 const LEVEL_COLOR = { normal: "#2bb673", watch: "#f5c542", warning: "#f28c28", evacuate: "#e5383b" };
 const STATUS_COLOR = { sent: "#c9d6e5", delivered: "#7fc8ff", played: "#f5c542", safe: "#2bb673", help: "#e5383b" };
@@ -29,15 +29,50 @@ function setupRoom() {
   S.room = (urlRoom || localStorage.getItem("khabardar_room") || newRoomCode()).toLowerCase().replace(/[^a-z0-9]/g, "");
   localStorage.setItem("khabardar_room", S.room);
   $("roomCode").textContent = S.room.slice(0, 4).toUpperCase();
-  const here = location.href.split(/[?#]/)[0].replace(/[^/]*$/, "");
-  const base = (CFG.joinBase ? CFG.joinBase.replace(/\/$/, "") + "/" : here);
-  const url = `${base}phone.html?room=${S.room}`;
-  $("joinUrl").textContent = url;
-  $("qr").innerHTML = "";
-  if (window.QRCode) new QRCode($("qr"), { text: url, width: 84, height: 84, correctLevel: QRCode.CorrectLevel.M });
-  $("testPhoneLink").href = `${here}phone.html?room=${S.room}&v=mingora&name=${encodeURIComponent("Test phone")}`;
   $("edition").textContent = CFG.edition === "local" ? "local network edition" : "online edition";
   $("relayName").textContent = CFG.edition === "local" ? "this laptop (local relay)" : "ntfy.sh (public)";
+}
+/* Join link and QR code: they carry the control room's PUBLIC key, so phones can check every alert. */
+function renderJoin() {
+  const here = location.href.split(/[?#]/)[0].replace(/[^/]*$/, "");
+  const base = (CFG.joinBase ? CFG.joinBase.replace(/\/$/, "") + "/" : here);
+  const k = S.pubB64 ? `&k=${S.pubB64}` : "";
+  const url = `${base}phone.html?room=${S.room}${k}`;
+  $("joinUrl").textContent = `${base}phone.html?room=${S.room}${k ? "&k=…" : ""}`;
+  $("joinUrl").title = url;
+  $("qr").innerHTML = "";
+  if (window.QRCode) new QRCode($("qr"), { text: url, width: 84, height: 84, correctLevel: QRCode.CorrectLevel.L });
+  $("testPhoneLink").href = `${here}phone.html?room=${S.room}${k}&v=mingora&name=${encodeURIComponent("Test phone")}`;
+}
+/* This control room's signing key (made once per room in this browser; the private half never leaves it). */
+async function loadKeys() {
+  if (!canSign()) return;
+  const store = "kh_key_" + S.room;
+  try {
+    let saved = JSON.parse(localStorage.getItem(store) || "null");
+    if (!saved) {
+      const kp = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+      saved = { priv: await crypto.subtle.exportKey("jwk", kp.privateKey), pub: b64u.enc(await crypto.subtle.exportKey("raw", kp.publicKey)) };
+      localStorage.setItem(store, JSON.stringify(saved));
+    }
+    const priv = await crypto.subtle.importKey("jwk", saved.priv, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+    S.pubB64 = saved.pub;
+    S.pubKey = await importPublicKey(saved.pub);
+    window.KH_SIGNER = async (obj) => b64u.enc(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, priv, new TextEncoder().encode(canon(obj))));
+  } catch (e) { console.warn("signing unavailable", e); }
+}
+/* Messages from the relay are checked in arrival order; control messages must carry this room's signature. */
+let _inbox = Promise.resolve();
+function receive(m) {
+  _inbox = _inbox.then(async () => {
+    if (SIGNED_TYPES.includes(m.type) && S.pubKey && !(await verifyMsg(S.pubKey, m))) {
+      S.blocked = (S.blocked || 0) + 1;
+      addLog(`BLOCKED a fake "${m.type}" message — it was not signed by this control room, so phones ignore it too`);
+      if (m.type === "alert") toast("A fake alert was blocked — phones will ignore it");
+      return;
+    }
+    handle(m, false);
+  }).catch(() => {});
 }
 /* Short on-screen message, so every button visibly does something. */
 function toast(msg, ms = 3500) {
@@ -88,7 +123,75 @@ function applyLayers() {
 document.querySelectorAll("#layersBody input[data-layer]").forEach((cb) => cb.addEventListener("change", applyLayers));
 $("layersToggle").addEventListener("click", () => { $("layersBody").hidden = !$("layersBody").hidden; $("layersToggle").textContent = $("layersBody").hidden ? "Map layers ▸" : "Map layers ▾"; });
 NASA.REPLAYS.forEach((r) => $("nasaDate").insertAdjacentHTML("beforeend", `<option value="${r.date}">NASA replay: ${esc(r.label)}</option>`));
-$("nasaDate").addEventListener("change", (e) => setReplay(e.target.value === "latest" ? null : e.target.value));
+$("nasaDate").insertAdjacentHTML("beforeend", '<option value="fx:punjab2025">Before-the-flood replay: 24–27 Aug 2025 Punjab floods (forecast a day ahead)</option>');
+$("nasaDate").addEventListener("change", (e) => {
+  const v = e.target.value;
+  if (v.startsWith("fx:")) { startFx(v); return; }
+  if (S.fx) stopFx(true);
+  setReplay(v === "latest" ? null : v);
+});
+
+/* ---- Before-the-flood replay: plays 24-27 Aug 2025 hour by hour, using only the forecast issued ~1 day earlier
+   (Open-Meteo Previous Runs API). Automatic mode reacts exactly as it would have then. */
+async function startFx() {
+  if (S.replay) { S.replay = null; $("replayBanner").hidden = true; }
+  let data;
+  try { data = await (await fetch("data/replay-2025-08-punjab.json")).json(); }
+  catch (e) { toast("Replay data could not be loaded"); $("nasaDate").value = "latest"; return; }
+  const peaks = {};
+  for (const [id, p] of Object.entries(data.places)) { let k = 0; p.obs.forEach((x, i) => { if (x > p.obs[k]) k = i; }); peaks[id] = k; }
+  S.fx = { data, i: 0, playing: true, peaks };
+  $("fxSlider").max = data.times.length - 1; $("fxBar").hidden = false; $("fxPlay").textContent = "❚❚ Pause";
+  $("replayBanner").hidden = false;
+  map.flyToBounds([[30.6, 72.2], [33.3, 75.4]], { duration: 1 });
+  addLog(`BEFORE-THE-FLOOD REPLAY: ${data.event}. Watch when Khabardar would have warned, using only forecasts available at each hour.`);
+  fxShow(); fxSchedule();
+}
+function stopFx(quiet) {
+  if (!S.fx) return;
+  clearTimeout(S.fx.timer);
+  S.fx = null; $("fxBar").hidden = true; $("replayBanner").hidden = true;
+  if ($("nasaDate").value.startsWith("fx:")) $("nasaDate").value = "latest";
+  if (!quiet) addLog("Before-the-flood replay ended — back to live data");
+  recompute(); refreshLive();
+}
+function fxLabel(iso) { return new Date(iso + ":00").toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) + " PKT"; }
+function fxShow() {
+  const f = S.fx; if (!f) return;
+  $("fxSlider").value = f.i; $("fxTime").textContent = fxLabel(f.data.times[f.i]);
+  $("replayBanner").textContent = `BEFORE-THE-FLOOD REPLAY · ${fxLabel(f.data.times[f.i])} — what the forecast issued a day earlier said`;
+  recompute();
+}
+function fxSchedule() {
+  const f = S.fx; if (!f) return;
+  clearTimeout(f.timer);
+  f.timer = setTimeout(() => {
+    if (!S.fx) return;
+    if (f.playing && !S.pendingAuto) {   // the timeline waits while an automatic alert is counting down
+      if (f.i < f.data.times.length - 1) { f.i++; fxShow(); }
+      else { f.playing = false; $("fxPlay").textContent = "▶ Play"; addLog("Before-the-flood replay finished (27 Aug 2025 00:00)"); }
+    }
+    fxSchedule();
+  }, +$("fxSpeed").value);
+}
+function fxWx() {
+  const f = S.fx, base = {};
+  for (const [id, p] of Object.entries(f.data.places)) base[id] = { rain_24h: p.rain_24h[f.i], rain_max_1h: p.rain_max_1h[f.i] };
+  return { ok: true, t: now(), base };
+}
+$("fxPlay").addEventListener("click", () => { if (!S.fx) return; S.fx.playing = !S.fx.playing; if (S.fx.playing && S.fx.i >= S.fx.data.times.length - 1) S.fx.i = 0; $("fxPlay").textContent = S.fx.playing ? "❚❚ Pause" : "▶ Play"; });
+$("fxSlider").addEventListener("input", (e) => { if (S.fx) { S.fx.i = +e.target.value; fxShow(); } });
+$("fxStop").addEventListener("click", () => stopFx());
+function fxLead(ids) {   // how long before the heaviest rain the alert came
+  const f = S.fx; if (!f) return "";
+  const parts = ids.filter((id) => f.peaks[id] != null).map((id) => {
+    const d = S.live && S.live.villages[id];
+    if (d && d.driver === "upstream") return `${VMAP[id].name}: flood water from ${VMAP[d.upstream_from].name} expected in ≈ ${d.upstream_hours} h`;
+    const h = f.peaks[id] - f.i;
+    return h > 0 ? `${VMAP[id].name} ${h} h before its heaviest rain (${fxLabel(f.data.times[f.peaks[id]])})` : `${VMAP[id].name} as the heavy rain arrived`;
+  });
+  return parts.length ? " — " + parts.join("; ") : "";
+}
 
 function setReplay(date) {
   S.replay = date;
@@ -138,11 +241,13 @@ map.on("zoomend", () => { updateLabels(); applyLayers(); });
 function drawStatic() {
   for (const v of VILLAGES) {
     const icon = L.divIcon({ className: "", html: '<div style="width:9px;height:9px;background:#7fe0ff;border:2px solid #0b1726"></div>', iconSize: [9, 9] });
-    L.marker([v.safe.lat, v.safe.lon], { icon }).addTo(S.layers.safe).bindTooltip(`Safe point (demo): ${v.safe.name}, ${v.name}`);
+    L.marker([v.safe.lat, v.safe.lon], { icon }).addTo(S.layers.safe).bindTooltip(v.safe.real
+      ? `Suggested safe point for ${v.name}: ${v.safe.name} (${v.safe.kind}${v.safe.gain > 0 ? ", " + v.safe.gain + " m higher than the town" : ""}) — from OpenStreetMap + elevation, to be confirmed by the PDMA`
+      : `Safe point (demo placeholder): ${v.safe.name}, ${v.name}`);
   }
   for (const t of RESCUE_TEAMS) {
     const icon = L.divIcon({ className: "", html: `<div class="team-pin ${t.kind}">${t.kind === "boat" ? "≈" : "+"}</div>`, iconSize: [18, 18], iconAnchor: [9, 9] });
-    L.marker([t.lat, t.lon], { icon }).addTo(S.layers.teams).bindTooltip(`${t.name} (demo team)`);
+    L.marker([t.lat, t.lon], { icon }).addTo(S.layers.teams).bindTooltip(t.real ? `${t.name} — ${t.osmName} (location from OpenStreetMap)` : `${t.name} (demo location)`);
   }
 }
 function drawDanger() {
@@ -187,6 +292,7 @@ function popupHtml(v) {
       <span>NASA radar ≤ 6 km</span><b>${radar}</b>`}
       <span>NASA flood water ≤ 6 km</span><b>${sat}</b>
       ${d.upstream_score ? `<span>Flood from upstream</span><b>from ${esc(VMAP[d.upstream_from].name)} in ≈ ${d.upstream_hours} h</b>` : ""}
+      <span>Safe point</span><b>${esc(v.safe.name)} <span style="color:#777">${v.safe.real ? `(${esc(v.safe.kind)}${v.safe.gain > 0 ? ", +" + v.safe.gain + " m" : ""}, OpenStreetMap — confirm with PDMA)` : "(demo placeholder)"}</span></b>
       <span>People within 6 km</span><b>${d.pop_capped ? "at least " : ""}${fmtPeople(d.pop_6km)}${d.people_water ? ` · under water ≈ ${fmtPeople(d.people_water)}` : ""}</b>
     </div>
     <span style="color:#666">Scores: ${esc(partsTxt)}</span><br>
@@ -305,10 +411,11 @@ function saveAuto() {
 }
 ["autoAlerts", "autoRescue", "autoLevel", "autoDelay"].forEach((id) => $(id).addEventListener("change", saveAuto));
 
-function alertedLevel(vid) {   // highest level already sent to this place recently (manual or automatic)
+function lastClear(vid) { return Math.max(0, ...S.clears.filter((c) => c.villages.includes(vid)).map((c) => c.t || 0)); }
+function alertedLevel(vid) {   // highest level already sent to this place recently (manual or automatic), since its last all-clear
   let best = 0;
-  const t0 = now() - AUTO_COOLDOWN;
-  for (const a of S.alerts) if ((a.t || 0) >= t0 && a.villages.includes(vid)) best = Math.max(best, LEVEL_RANK[a.level] || 0);
+  const t0 = Math.max(now() - AUTO_COOLDOWN, lastClear(vid));
+  for (const a of S.alerts) if ((a.t || 0) > t0 && a.villages.includes(vid)) best = Math.max(best, LEVEL_RANK[a.level] || 0);
   const c = S.autoCancelled[vid];
   if (c && now() - c.t < 3600) best = Math.max(best, c.rank);   // an officer cancelled: wait an hour unless it gets worse
   return best;
@@ -318,15 +425,53 @@ function autoDue() {
   const th = LEVEL_RANK[S.auto.threshold];
   return VILLAGES.filter((v) => { const r = LEVEL_RANK[S.live.villages[v.id].level]; return r >= th && r > alertedLevel(v.id); });
 }
+/* "All clear": tell phones the danger has passed (manual button, or automatically when an alerted place is Normal again). */
+async function sendAllClear(villages, auto) {
+  const msg = { type: "allclear", id: Math.random().toString(36).slice(2, 10), villages, auto: !!auto, test: $("isTest").checked, t: now() };
+  const ok = await publish(S.room, msg);
+  if (!ok) { toast("All clear NOT sent — the relay is not reachable"); return false; }
+  handle(msg, true);
+  toast(`${auto ? "Automatic " : ""}ALL CLEAR sent for ${villages.map((id) => VMAP[id].name).join(", ")}`);
+  return true;
+}
+$("clearBtn").addEventListener("click", () => {
+  const vs = [...S.selected];
+  if (!vs.length) { toast("Select the places where the danger has passed, then press Send ALL CLEAR"); return; }
+  sendAllClear(vs, false);
+});
+function autoAllClear() {
+  if (!S.auto || !S.auto.alerts || !S.historyReady || S.pendingAuto || !S.live || S._clearing) return false;
+  const t = now();
+  const done = VILLAGES.filter((v) => {
+    if (S.live.villages[v.id].level !== "normal" || alertedLevel(v.id) === 0) return false;
+    const last = Math.max(...S.alerts.filter((a) => a.villages.includes(v.id)).map((a) => a.t || 0));
+    return t - last > 60;   // wait a minute, so a short dip does not end the warning
+  }).map((v) => v.id);
+  if (!done.length) return false;
+  S._clearing = true;
+  sendAllClear(done, true).finally(() => { S._clearing = false; });
+  return true;
+}
+$("fakeBtn").addEventListener("click", async () => {
+  const vs = S.selected.size ? [...S.selected] : ["mingora"];
+  const fake = { type: "alert", id: "fake" + Math.random().toString(36).slice(2, 8), level: "evacuate", villages: vs, test: true, t: now() };
+  addLog(`FAKE-ALERT TEST: sending an UNSIGNED evacuate alert for ${vs.map((id) => VMAP[id].name).join(", ")}, like an attacker would…`);
+  const res = await publish(S.room, fake, { noSign: true, untrusted: CFG.edition === "local" });
+  if (res === "blocked") { addLog("FAKE-ALERT TEST: the laptop refused it — only the control room on this laptop may send alerts"); toast("Fake alert blocked by the laptop"); }
+  else if (!res) toast("Relay not reachable");
+});
+
 function autoCheck() {
   renderAutoStatus();
   if (!S.auto || !S.auto.alerts || !S.historyReady || S.pendingAuto || !S.live) return;
+  if (autoAllClear()) return;
   const due = autoDue();
   if (!due.length) return;
   const top = Math.max(...due.map((v) => LEVEL_RANK[S.live.villages[v.id].level]));
   const villages = due.filter((v) => LEVEL_RANK[S.live.villages[v.id].level] === top).map((v) => v.id);
   // a little random extra wait, so two control rooms in automatic mode do not both send the same alert
-  S.pendingAuto = { level: LEVEL_BY_RANK[top], villages, due: now() + S.auto.delay + Math.random() * 2 };
+  const delay = S.fx ? Math.min(S.auto.delay, 3) : S.auto.delay;   // short countdown during a replay (the timeline waits)
+  S.pendingAuto = { level: LEVEL_BY_RANK[top], villages, due: now() + delay + Math.random() * 2 };
   addLog(`AUTOMATIC: ${LEVEL_BY_RANK[top].toUpperCase()} detected for ${villages.map((id) => VMAP[id].name).join(", ")} — alert in ${S.auto.delay} s unless cancelled`);
   renderPending();
   if (S.auto.delay > 0) toast(`Automatic ${LEVEL_BY_RANK[top]} alert in ${S.auto.delay} s — ${villages.length} place(s). Cancel in panel 1 if needed.`, 5000);
@@ -396,7 +541,8 @@ function handle(m, local) {
   const t = m._time ?? now();  // relay time keeps ordering consistent across devices
   if (m.type === "reset") {
     if (t > S.resetAt) {
-      S.resetAt = t; S.responses = {}; S.alerts = []; S.currentAlert = null; S.scenario = {};
+      S.resetAt = t; S.responses = {}; S.alerts = []; S.clears = []; S.currentAlert = null; S.scenario = {};
+      if (S.fx) stopFx();
       S.pendingAuto = null; S.autoCancelled = {}; renderPending();
       for (const id of Object.keys(S.phones)) if (S.phones[id].sim || S.phones[id].sms || S.phones[id].report) delete S.phones[id];
       $("log").innerHTML = ""; $("sendResult").textContent = ""; drawAlertArea(null);
@@ -426,7 +572,7 @@ function handle(m, local) {
     }
     drawAlertArea(m);
     $("sendResult").textContent = `${m.auto ? "Automatic alert sent" : "Sent"} to ${n} phone(s) at ${fmtTime(m.t || t)}${sms ? ` · ${sms} by SMS` : ""}.`;
-    addLog(`${m.auto ? "AUTOMATIC " : ""}${m.level.toUpperCase()} sent to ${n} phone(s) — ${m.villages.map((v) => VMAP[v].name).join(", ")}${m.test ? " [DEMO]" : ""}`);
+    addLog(`${m.auto ? "AUTOMATIC " : ""}${m.level.toUpperCase()} sent to ${n} phone(s) — ${m.villages.map((v) => VMAP[v].name).join(", ")}${m.test ? " [DEMO]" : ""}${S.fx ? " · replay time " + fxLabel(S.fx.data.times[S.fx.i]) + fxLead(m.villages) : ""}`);
     if (S.pendingAuto) renderPending();
   } else if (m.type === "ack" || m.type === "respond") {
     const key = m.alert_id + "|" + m.pid;
@@ -451,6 +597,11 @@ function handle(m, local) {
     if (r) { r.details = { people: +m.people || 1, injured: !!m.injured, elderly: !!m.elderly, children: !!m.children, pregnant: !!m.pregnant, water: !!m.water };
       if (m.lat != null) { r.lat = m.lat; r.lon = m.lon; r.gps = true; }
       addLog(`${phoneName(S.phones[m.pid], m.pid)} sent help details: ${r.details.people} people${r.details.injured ? ", injured" : ""}${r.details.water ? ", water rising" : ""}`); }
+  } else if (m.type === "allclear") {
+    if (S.clears.some((c) => c.id === m.id)) return;
+    m.villages = (m.villages || []).filter((id) => VMAP[id]);
+    S.clears.push(m);
+    addLog(`${m.auto ? "AUTOMATIC " : ""}ALL CLEAR for ${m.villages.map((id) => VMAP[id].name).join(", ")} — phones there are told the danger has passed`);
   } else if (m.type === "sms_in") {
     handleSms(m, t);
   } else if (m.type === "report") {
@@ -669,6 +820,7 @@ $("tabs").addEventListener("click", (e) => { const b = e.target.closest("button"
 
 // ---------------------------------------------------------------- live data + risk table
 async function refreshLive(force) {
+  if (S.fx) return;
   const date = S.replay || "latest";
   if (!S.replay) S.wx = await fetchWeather(VILLAGES, force);
   recompute();
@@ -691,7 +843,10 @@ async function refreshLive(force) {
   }
 }
 function recompute() {
-  S.live = liveView({ wx: S.wx, nasa: S.nasa, radar: S.replay ? null : S.radar, scenario: S.scenario, replay: S.replay });
+  if (S.fx) {   // before-the-flood replay: forecast of that hour only
+    S.live = liveView({ wx: fxWx(), nasa: null, radar: null, scenario: {}, replay: false });
+    for (const d of Object.values(S.live.villages)) d.replay = true;
+  } else S.live = liveView({ wx: S.wx, nasa: S.nasa, radar: S.replay ? null : S.radar, scenario: S.scenario, replay: S.replay });
   renderBadges(); renderRiskTable(); drawVillages(); drawDanger(); drawFlows(); renderImpact(); renderPreview();
   autoCheck();
 }
@@ -738,6 +893,7 @@ function renderImpact() {
 }
 function renderBadges() {
   const b = $("srcBadge"), n = $("nasaBadge");
+  if (S.fx) { b.textContent = "FORECAST REPLAY · 24–27 Aug 2025"; b.className = "badge replay"; n.textContent = "NASA: not used in this replay"; n.className = "badge"; return; }
   if (S.replay) { b.textContent = "Weather: paused during replay"; b.className = "badge off"; }
   else if (S.wx && S.wx.ok) { b.textContent = `LIVE rain & river · ${fmtTime(S.wx.t)}${S.wx.stale ? " (cached)" : ""}`; b.className = "badge live"; }
   else { b.textContent = S.wx ? "Weather data offline" : "Weather…"; b.className = "badge off"; }
@@ -821,8 +977,11 @@ setInterval(() => { if (!S.replay) refreshLive(); }, 15 * 60 * 1000);
 setInterval(() => { if (!S.replay) { NASA.clearLatest(); refreshLive(); } }, 60 * 60 * 1000);
 setInterval(() => { if (S.tab === "rescue" && Rescue.list().length) Rescue.render(); }, 20000);
 
-(function init() {
+(async function init() {
   setupRoom();
+  await loadKeys();
+  renderJoin();
+  $("signState").textContent = S.pubKey ? "Alerts are digitally signed ✓" : "Signing not available in this browser";
   drawStatic();
   applyLayers();
   map.invalidateSize();
@@ -832,7 +991,7 @@ setInterval(() => { if (S.tab === "rescue" && Rescue.list().length) Rescue.rende
   Dummies.init();
   drawVillages(); renderSelection(); renderAll();
   loadAuto(); renderAutoStatus();
-  subscribe(S.room, "12h", (m) => handle(m, false), (st) => {
+  subscribe(S.room, "12h", receive, (st) => {
     $("relayBadge").textContent = st === "ok" ? (CFG.edition === "local" ? "Local relay connected" : "Relay connected") : "Relay reconnecting…";
     $("relayBadge").className = "badge " + (st === "ok" ? "live" : "off");
     // let the room's history arrive before automatic mode decides anything (so nothing is sent twice after a reload)

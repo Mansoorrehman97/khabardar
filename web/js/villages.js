@@ -132,6 +132,16 @@ const RIVER_LINKS = [
   ["jacobabad", "larkana", 24, "flood water over the plains"]
 ];
 
+/* Real places instead of placeholders, where OpenStreetMap has them (js/safepoints.js): the highest named school,
+   college or hospital within 4 km, and real Rescue 1122 stations. Still suggestions — the PDMA must confirm them. */
+if (typeof SAFE_REAL !== "undefined") {
+  for (const v of VILLAGES) {
+    const s = SAFE_REAL[v.id];
+    // a building lower than the town centre is not a safe point (allow ±3 m: the height data is not exact on flat plains)
+    if (s && (s.gain == null || s.gain >= -3)) v.safe = { name: s.name, name_ur: s.name_ur || s.name, lat: s.lat, lon: s.lon, gain: s.gain, kind: s.kind, osm: s.osm, real: true };
+  }
+}
+
 const PROVINCE_NAMES = { KP: "Khyber Pakhtunkhwa", GB: "Gilgit-Baltistan", AJK: "Azad Kashmir", Punjab: "Punjab", Sindh: "Sindh", Balochistan: "Balochistan" };
 const PROVINCE_UR = { KP: "خیبر پختونخوا", GB: "گلگت بلتستان", AJK: "آزاد کشمیر", Punjab: "پنجاب", Sindh: "سندھ", Balochistan: "بلوچستان" };
 
@@ -142,7 +152,9 @@ const RESCUE_TEAMS = (() => {
   for (const v of VILLAGES) {
     if (seen.has(v.district)) continue;
     seen.add(v.district);
-    out.push({ id: "t_" + v.id, name: `Rescue 1122 ${v.district}`, kind: "rescue", lat: +(v.lat - 0.02).toFixed(4), lon: +(v.lon - 0.025).toFixed(4) });
+    const real = typeof TEAMS_REAL !== "undefined" && TEAMS_REAL[v.id] && !/shop/i.test(TEAMS_REAL[v.id].name) ? TEAMS_REAL[v.id] : null;
+    out.push(real ? { id: "t_" + v.id, name: `Rescue 1122 ${v.district}`, kind: "rescue", lat: real.lat, lon: real.lon, real: true, osm: real.osm, osmName: real.name }
+                  : { id: "t_" + v.id, name: `Rescue 1122 ${v.district}`, kind: "rescue", lat: +(v.lat - 0.02).toFixed(4), lon: +(v.lon - 0.025).toFixed(4) });
     if ((v.province === "Sindh" || v.province === "Punjab") && /Indus|Chenab|Ravi|Sutlej|Jhelum/.test(v.river)) {
       out.push({ id: "b_" + v.id, name: `PDMA boat team ${v.district}`, kind: "boat", lat: +(v.lat + 0.018).toFixed(4), lon: +(v.lon - 0.03).toFixed(4) });
     }

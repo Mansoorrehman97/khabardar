@@ -114,6 +114,19 @@ Sindh red from real satellite data, and the live demo makes the judges' own phon
   connection that still works: internet, a local Wi-Fi network with no internet (laptop edition), or SMS. Answers and
   reports are saved on the phone and sent automatically when the signal returns, and the app opens offline.
 
+## Proof, safety and honesty
+
+- **Before-the-flood replay (24–27 Aug 2025 Punjab floods):** using only the forecast issued a day earlier, Khabardar
+  would have ordered **Narowal to evacuate 26 hours** before its heaviest rain, **Marala 19 hours** and **Sialkot 13 hours**.
+- **Calibrated and honest:** over July–August 2025 the rule reached Evacuate on only 2 days at Sialkot, Narowal and Marala
+  (both on the real flood days). Forecasts **missed the Buner cloudburst** of 15 Aug 2025, which is why Khabardar also uses
+  satellite rain, flood water upstream, reports and SMS, and why rain gauges and PMD radar are next.
+- **No fake alerts:** every alert is digitally signed by the control room and checked by every phone; forged alerts are
+  blocked (shown live with the Fake-alert test).
+- **All clear:** when the danger passes, phones get a green ALL CLEAR (automatic or by the officer).
+- **Real safe points:** the highest named school, college or hospital within 4 km (OpenStreetMap + elevation), shown with
+  how many metres higher it is; to be confirmed by the PDMA.
+
 ## What is new (Innovation)
 
 The full chain in one tool: live forecasts **and NASA satellites** → place-level risk → every phone rings → proof
@@ -147,7 +160,7 @@ the control room, delivery by SMS and voice call, and setup and training for the
 
 ## Disclosure: APIs, libraries and AI assistants
 
-- **APIs and data:** Open-Meteo Forecast API and Flood API (CC BY 4.0); GloFAS river discharge, Copernicus
+- **APIs and data:** Open-Meteo Forecast, Flood, Previous Runs and Elevation APIs (CC BY 4.0); OpenStreetMap via Overpass (ODbL); GloFAS river discharge, Copernicus
   Emergency Management Service; NASA GIBS (MODIS and VIIRS flood products from LANCE, GPM IMERG, SMAP L4, NASA JPL
   OPERA DSWx-S1 and RTC-S1 from Copernicus Sentinel-1 radar, SEDAC population 2020, SEDAC flood and landslide hazard,
   VIIRS snow cover and true colour); NASA EONET; OpenStreetMap tiles; Google Maps directions links (no API).

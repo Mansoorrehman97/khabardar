@@ -24,7 +24,8 @@ const T = {
     reportWhere: "Where are they?", reportHere: "They are near me (use my location)", reportPeople: "How many people?",
     reportNote: "Landmark or names (optional)", reportSend: "Send report", reportOk: "Report sent — the control room can see it. Thank you.",
     savedOffline: "No connection — saved on this phone. It will be sent automatically when the signal returns.",
-    outboxWaiting: "{n} message(s) waiting for the signal — they will be sent automatically." },
+    outboxWaiting: "{n} message(s) waiting for the signal — they will be sent automatically.",
+    higher: "{m} m higher than the town centre", ok: "OK", rescanKey: "For safety, please scan the QR code on the control room screen again." },
   ur: { tagline: "سیلاب کی وارننگ آپ کے فون پر — آپ کی زبان میں، پانی آنے سے پہلے۔", langLabel: "زبان",
     villageLabel: "آپ کا گاؤں / شہر", familyLabel: "گھر والوں کا گاؤں بھی دیکھیں (اختیاری)", nameLabel: "آپ کا نام (اختیاری)",
     gps: "میری درست جگہ امدادی ٹیموں کو بتائیں", start: "خبردار آن کریں",
@@ -48,7 +49,8 @@ const T = {
     reportWhere: "وہ کہاں ہیں؟", reportHere: "وہ میرے قریب ہیں (میری جگہ استعمال کریں)", reportPeople: "کتنے لوگ ہیں؟",
     reportNote: "نشانی یا نام (اختیاری)", reportSend: "اطلاع بھیجیں", reportOk: "اطلاع بھیج دی گئی — کنٹرول روم اسے دیکھ سکتا ہے۔ شکریہ۔",
     savedOffline: "رابطہ نہیں — پیغام اس فون میں محفوظ ہے۔ سگنل آتے ہی خود بخود بھیج دیا جائے گا۔",
-    outboxWaiting: "{n} پیغام سگنل کے انتظار میں ہیں — خود بخود بھیج دیے جائیں گے۔" },
+    outboxWaiting: "{n} پیغام سگنل کے انتظار میں ہیں — خود بخود بھیج دیے جائیں گے۔",
+    higher: "شہر کے مرکز سے {m} میٹر اونچا", ok: "ٹھیک ہے", rescanKey: "حفاظت کے لیے، کنٹرول روم کی اسکرین پر موجود QR کوڈ دوبارہ اسکین کریں۔" },
 };
 const RTL = { ur: true, en: false };
 const $ = (id) => document.getElementById(id);
@@ -56,7 +58,12 @@ const params = new URLSearchParams(location.search);
 
 let settings = JSON.parse(localStorage.getItem("khabardar") || "{}");
 if (!settings.id) settings.id = Array.from(crypto.getRandomValues(new Uint32Array(3)), (x) => x.toString(36)).join("").slice(0, 16);
-if (params.get("room")) settings.room = params.get("room").toLowerCase().replace(/[^a-z0-9]/g, "");
+if (params.get("room")) {
+  const room = params.get("room").toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (room !== settings.room) delete settings.key;   // a new room: its own control-room key
+  settings.room = room;
+}
+if (params.get("k") && /^[A-Za-z0-9_-]{60,120}$/.test(params.get("k"))) settings.key = params.get("k");   // the control room's public key (from the QR code)
 if (params.get("v") && VMAP[params.get("v")] && !settings.village) settings.village = params.get("v");
 if (params.get("name") && !settings.name) settings.name = params.get("name").slice(0, 40);
 let lang = T[params.get("lang")] ? params.get("lang") : T[settings.lang] ? settings.lang : "ur"; // older saved choices fall back to Urdu
@@ -66,7 +73,7 @@ let alertActive = false, sirenMuted = false, cycleTimer = null, wakeLock = null,
 
 function save() { settings.lang = lang; localStorage.setItem("khabardar", JSON.stringify(settings)); }
 function t(k, vars) { let s = (T[lang] && T[lang][k]) || T.en[k] || k; if (vars) for (const [a, b] of Object.entries(vars)) s = s.replace("{" + a + "}", b); return s; }
-function show(id) { ["setup", "idle", "alert", "done", "report"].forEach((s) => ($(s).hidden = s !== id)); window.scrollTo(0, 0); }
+function show(id) { ["setup", "idle", "alert", "done", "report", "clear"].forEach((s) => ($(s).hidden = s !== id)); window.scrollTo(0, 0); }
 function vName(v) { return RTL[lang] ? v.name_ur || v.name : v.name; }
 
 function applyLang() {
@@ -194,7 +201,20 @@ setInterval(flushOutbox, 15000);
 function connect() {
   if (es) es.close();
   setConn("connecting");
-  es = subscribe(settings.room, "15m", onRelay, setConn);
+  es = subscribe(settings.room, "15m", checkThenHandle, setConn);
+}
+/* Protection against fake alerts: control messages must be signed by the control room whose public key came in the QR
+   code. In the laptop edition (plain http, no browser crypto) the laptop itself refuses control messages from phones. */
+let pubKey = null, inbox = Promise.resolve();
+async function loadKey() { if (settings.key && canSign()) { try { pubKey = await importPublicKey(settings.key); } catch (e) { pubKey = null; } } }
+function checkThenHandle(m) {
+  inbox = inbox.then(async () => {
+    if (SIGNED_TYPES.includes(m.type)) {
+      if (pubKey) { if (!(await verifyMsg(pubKey, m))) return; }        // not from our control room: ignore
+      else if (CFG.edition !== "local") return;                          // online without a key: never trust it
+    }
+    onRelay(m);
+  }).catch(() => {});
 }
 function setConn(state) {
   if (state === "ok") flushOutbox();
@@ -206,12 +226,26 @@ function myVillageFor(alert) {
   if (alert.center && alert.radius_km && coords && haversineKm(alert.center[0], alert.center[1], coords.lat, coords.lon) <= alert.radius_km) return nearestVillage(coords.lat, coords.lon).id;
   return null;
 }
+// place id -> time this phone was last warned for it (kept on the phone, so an all-clear still arrives after a reload)
+const warnedAt = (() => { try { return JSON.parse(localStorage.getItem("kh_warned") || "{}"); } catch (e) { return {}; } })();
+function markWarned(vid, tm) { warnedAt[vid] = Math.max(warnedAt[vid] || 0, tm); localStorage.setItem("kh_warned", JSON.stringify(warnedAt)); }
 function onRelay(m) {
-  const tm = m._time || Date.now() / 1000;
+  const nowS = Date.now() / 1000;
+  // signed messages carry their own (signed) time, so an old message replayed later is recognised as old
+  const tm = SIGNED_TYPES.includes(m.type) ? m.t || m._time || nowS : m._time || nowS;
+  if (SIGNED_TYPES.includes(m.type) && m.type !== "rescue" && nowS - tm > 1800) return;
+  if (m.type === "allclear") {
+    if (tm < lastReset) return;
+    const vid = [settings.village, settings.family].find((x) => x && (m.villages || []).includes(x) && warnedAt[x] && warnedAt[x] < tm);
+    if (vid) showClear(VMAP[vid], m.test);
+    return;
+  }
   if (m.type === "reset") {
+    if (tm < lastReset) return;
     lastReset = Math.max(lastReset, tm);
     answered.clear(); localStorage.setItem("khabardar_answered", "[]"); scenario = {}; rescue = null;
-    if (alertActive || !$("done").hidden || !$("alert").hidden) { endAlertSound(); current = null; show("idle"); }
+    for (const k of Object.keys(warnedAt)) delete warnedAt[k]; localStorage.setItem("kh_warned", "{}");
+    if (alertActive || !$("done").hidden || !$("alert").hidden || !$("clear").hidden) { endAlertSound(); current = null; show("idle"); }
     renderIdle();
   } else if (m.type === "scenario") {
     m.on ? (scenario[m.village] = true) : delete scenario[m.village];
@@ -222,14 +256,37 @@ function onRelay(m) {
     renderRescue();
     if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
   } else if (m.type === "alert") {
-    if (tm < lastReset || Date.now() / 1000 - tm > 1800 || answered.has(m.id)) return;
-    if (current && current.alert_id === m.id) return;
+    if (tm < lastReset || Date.now() / 1000 - tm > 1800) return;
     const vid = myVillageFor(m);
     if (!vid) return;
+    markWarned(vid, tm);   // also for alerts already answered: the phone was warned, so it should hear the all-clear
+    if (answered.has(m.id) || (current && current.alert_id === m.id)) return;
     const v = VMAP[vid];
     showAlert({ alert_id: m.id, level: m.level, test: m.test, village: v, safe: v.safe, texts: buildTexts(m.level, v), auto: !!m.auto, reason: (m.reasons || {})[vid] || null });
   }
 }
+
+/* ALL CLEAR: the danger has passed — green screen and a gentle chime instead of the siren. */
+function chime() {
+  if (!ctx || !master) return;
+  const t0 = ctx.currentTime;
+  [[660, 0], [880, 0.35], [990, 0.7]].forEach(([f, d]) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = "sine"; o.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, t0 + d); g.gain.exponentialRampToValueAtTime(0.4, t0 + d + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d + 0.5);
+    o.connect(g).connect(master); o.start(t0 + d); o.stop(t0 + d + 0.55);
+  });
+}
+function showClear(v, test) {
+  endAlertSound(); current = null;
+  const tx = clearText(v, lang);
+  $("cTitle").textContent = tx.title; $("cBody").textContent = tx.body; $("cDemo").hidden = !test;
+  show("clear");
+  chime();
+  if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+  if (document.hidden && "Notification" in window && Notification.permission === "granted") { try { new Notification("✓ " + tx.title, { body: tx.body }); } catch (e) { /* not allowed */ } }
+}
+$("clearOk").addEventListener("click", () => { show("idle"); renderIdle(); });
 
 function showAlert(a) {
   current = a; details = { people: 0 };
@@ -244,7 +301,7 @@ function showAlert(a) {
   $("aWhy").innerHTML = `<b>${escHtml(t(a.auto ? "autoWhy" : "why"))}</b>${escHtml(why)}`;
   $("aSafe").textContent = RTL[lang] ? a.safe.name_ur || a.safe.name : a.safe.name;
   const from = coords || a.village;
-  $("aDist").textContent = t("away", { km: haversineKm(from.lat, from.lon, a.safe.lat, a.safe.lon).toFixed(1) });
+  $("aDist").textContent = t("away", { km: haversineKm(from.lat, from.lon, a.safe.lat, a.safe.lon).toFixed(1) }) + (a.safe.gain > 0 ? " · " + t("higher", { m: a.safe.gain }) : "");
   $("routeBtn").href = `https://www.google.com/maps/dir/?api=1&destination=${a.safe.lat},${a.safe.lon}&travelmode=walking`;
   show("alert");
   send({ type: "ack", alert_id: a.alert_id, stage: "delivered", village: a.village.id });
@@ -410,11 +467,15 @@ $("stopBtn").addEventListener("click", () => { sirenMuted = true; stopSiren(); c
 $("backBtn").addEventListener("click", () => { show("idle"); renderIdle(); });
 setInterval(() => { if (!$("idle").hidden) refreshRisk(); }, 15 * 60 * 1000);
 
-(function init() {
+(async function init() {
   save();
+  await loadKey();
   $("name").value = settings.name || "";
   if (window.isSecureContext && navigator.geolocation) { $("gpsWrap").hidden = false; $("useGps").checked = settings.gps !== false; }
   if (!settings.room) { $("noRoom").hidden = false; $("startBtn").disabled = true; $("startBtn").style.opacity = 0.5; }
+  else if (CFG.edition !== "local" && !pubKey) {   // online link without the control room's key: alerts could not be checked
+    $("noRoom").hidden = false; $("noRoom").dataset.t = "rescanKey"; $("startBtn").disabled = true; $("startBtn").style.opacity = 0.5;
+  }
   applyLang();
   renderOutbox();
   show("setup");

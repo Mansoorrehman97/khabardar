@@ -50,6 +50,7 @@ lock = threading.RLock()
 history = collections.defaultdict(lambda: collections.deque(maxlen=MAX_PER_TOPIC))
 subscribers = collections.defaultdict(set)
 TOPIC_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+CONTROL_TYPES = {"alert", "reset", "scenario", "rescue", "allclear"}
 
 
 def publish(topic, body):
@@ -178,6 +179,10 @@ class Handler(BaseHTTPRequestHandler):
             return
         super().log_message(fmt, *args)
 
+    def from_this_laptop(self):
+        ip = str(self.client_address[0]).replace("::ffff:", "")
+        return ip in ("127.0.0.1", "::1") or ip in lan_ips()
+
     def cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -291,6 +296,16 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_bytes(b'{"error":"empty or too large"}', CTYPES[".json"], 413)
                 return
             body = self.rfile.read(n).decode("utf-8", "replace")
+            # protection against fake alerts: only the control room on this laptop may send alerts, resets, rescues
+            # and all-clears; phones on the Wi-Fi may only send their own answers, receipts and reports
+            try:
+                mtype = json.loads(body).get("type")
+            except (ValueError, AttributeError):
+                mtype = None
+            if mtype in CONTROL_TYPES and (not self.from_this_laptop() or self.headers.get("X-Khabardar-Untrusted")):
+                print(f"  [BLOCKED] a '{mtype}' message from {self.client_address[0]} — only the control room on this laptop may send it")
+                self.send_bytes(b'{"error":"only the control room may send this"}', CTYPES[".json"], 403)
+                return
             msg = publish(parts[1], body)
             self.send_bytes(json.dumps(msg, ensure_ascii=False).encode("utf-8"), CTYPES[".json"])
         else:

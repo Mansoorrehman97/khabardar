@@ -76,7 +76,9 @@ the automatic rules would be agreed with the disaster management authority (PDMA
 | Recent disasters | **NASA EONET** (Earth Observatory Natural Event Tracker) | Floods, storms and landslides of the last 12 months on the map |
 | Map | Leaflet 1.9.4 and © OpenStreetMap contributors | Control room map |
 | Walking route | Google Maps directions link (no API key) | Route to the safe point; directions for rescue teams |
-| Places, safe points, rescue teams | `web/js/villages.js`: 58 places in KP, Gilgit-Baltistan, AJK, Punjab, Sindh and Balochistan | **Safe points and rescue teams are demo placeholders** |
+| Places | `web/js/villages.js`: 58 places in KP, Gilgit-Baltistan, AJK, Punjab, Sindh and Balochistan | Who gets warned |
+| Safe points and Rescue 1122 stations | **OpenStreetMap** (Overpass API, ODbL) + **Open-Meteo Elevation API** (Copernicus DEM) → `web/js/safepoints.js` | Highest named school / college / hospital within 4 km; real stations where mapped (to be confirmed by PDMA) |
+| Past forecasts | **Open-Meteo Previous Runs API** (forecast issued ~1 day earlier) → `web/data/replay-2025-08-punjab.json` | Before-the-flood replay and the false-alarm check |
 | Upstream replay | Marala headworks flows reported by Dawn (May and December 2025) | A labelled replay of past events |
 
 The NASA numbers are read from NASA's map tiles: the app turns each pixel's colour back into a value with NASA's
@@ -88,9 +90,9 @@ published colour keys (`web/js/nasa-colormaps.js`). No NASA account or key is ne
 
 | Score | Rule | Flood types |
 |---|---|---|
-| Rain | (heaviest hour × 6 + next-24-hour rain × 1.2) × wet-ground factor × terrain factor. Heaviest hour = forecast or NASA IMERG observed, whichever is larger; wet ground (NASA SMAP 0.20 → 0.45 m³/m³) × 1.0 → 1.5; steep valleys × 1.25, cities × 1.3 | all; flash floods; city flooding |
+| Rain | (heaviest hour × 3 + next-24-hour rain × 0.65) × wet-ground factor × terrain factor — calibrated on the 2025 monsoon, so Evacuate needs about 123 mm in a day (less with a heavy hourly burst). Heaviest hour = forecast or NASA IMERG observed, whichever is larger; wet ground (NASA SMAP 0.20 → 0.45 m³/m³) × 1.0 → 1.5; steep valleys × 1.25, cities × 1.3 | all; flash floods; city flooding |
 | River | (peak ÷ 30-day median − 1) × 60 for the next 3 days, or × 0.7 for the 7-day peak (further ahead, less certain) | river floods |
-| Hill torrent | the rain score of a point in the hills upstream × 0.9 | hill torrents |
+| Hill torrent | the rain score (same rule) of a point in the hills upstream × 0.9 | hill torrents |
 | Glacier melt | (hottest day in 3 days − the town's danger temperature + 2) × 12, at most Warning | glacial lake outburst |
 | Coastal storm | (strongest wind gust − 42 km/h) × 1.25 | coastal storm and surge |
 | Satellite | share of land within 6 km under flood water: 1–5% Watch, 5% Warning, about 13% Evacuate. MODIS and VIIRS must agree when both see the ground. NASA radar new water alone can only raise Watch | any |
@@ -122,6 +124,42 @@ NASA sees. NASA's population map stops at 1,000 people per km², so city figures
   in automatic mode, a small random extra wait lets the second one see the first one's alert and skip it.
 - Automatic mode runs in the control room page, so keep that page open (as an operations-room screen would be).
   A real deployment would run the same rules on a server.
+
+**Protection against fake alerts.** Every alert, reset, rescue update and all-clear is **digitally signed** (ECDSA P-256)
+by the control room. The private key is made in the control room's browser and never leaves it; the public key travels
+in the QR code, so each phone checks every control message and ignores anything not signed by its control room. Signed
+messages carry their time, so an old message cannot be replayed later. In the laptop edition (plain http on the local
+Wi-Fi, where phones cannot check signatures) the laptop itself refuses alerts that do not come from the control room on
+the laptop. The **Fake-alert test** button shows it: the forged alert is blocked and no phone reacts.
+
+**All clear.** When a place that was alerted is back to Normal for a minute, automatic mode sends **ALL CLEAR**
+(or the officer presses **Send ALL CLEAR**). Phones that were warned show a green "the danger has passed" screen with a
+gentle chime, in Urdu or English.
+
+**Proof: would it have warned in time?** The **before-the-flood replay** plays the **24–27 Aug 2025 Punjab floods** hour by
+hour using only the forecast that was issued about one day earlier (Open-Meteo Previous Runs API), so nothing from the
+future leaks in. Automatic mode reacts as it would have then:
+
+| Place | Khabardar would have warned | Evacuate order | Heaviest rain |
+|---|---|---|---|
+| Narowal | 25 Aug 08:00 | 25 Aug 09:00 — **26 hours before** | 26 Aug 11:00 |
+| Marala (Chenab) | 25 Aug 14:00 | 25 Aug 23:00 — **19 hours before** | 26 Aug 18:00 |
+| Sialkot | 25 Aug 12:00 | 25 Aug 19:00 — **13 hours before** | 26 Aug 08:00 |
+
+**Honest limits of the proof.** (1) **Forecasts missed the Buner cloudburst of 15 Aug 2025**: the day-ahead forecast for
+Pir Baba and Daggar stayed Normal, because weather models work on 10–25 km squares and a cloudburst is a few km wide. This
+is why Khabardar also uses satellite rain, river levels, flood water upstream, people's own reports and the SMS help line —
+and why local rain gauges and PMD weather radar are next on the roadmap. (2) **False alarms**: with the calibrated rule,
+in all of July–August 2025 the day-ahead forecast reached Evacuate on 2 days at Sialkot, Narowal and Marala (all of them
+25–26 August, the real flood), 4 at Lahore and 3 at Kasur. The first rule reached Evacuate on 13 days at Sialkot, so it was
+changed. Real thresholds must still be set with PMD and PDMA over several seasons.
+
+**Real safe points.** Safe points are no longer invented: for each place Khabardar suggests the **highest named school,
+college or hospital within 4 km** of the town centre, from OpenStreetMap and elevation data (Copernicus DEM), and shows on
+the phone how many metres higher it is. Today **36 of the 58 places** have such a real building; the other 22 keep a labelled
+placeholder because OpenStreetMap has no suitable named building there, or every candidate is lower than the town. Real
+**Rescue 1122 station locations are used for 11 districts**. These are suggestions: the PDMA and district administration
+must confirm the real flood shelters.
 
 **Help for people without the app.**
 - **SMS help line:** any phone, even a keypad phone with no internet, sends for example `MADAD Dadu 5 zakhmi` (help ·
@@ -214,7 +252,9 @@ Live data (Open-Meteo, NASA) is fetched by each browser in both editions, so the
 | Flood-wave arrival times | **Rough estimates** (fixed travel times between places), not a hydraulic model |
 | People affected | **Estimates** from NASA SEDAC population 2020 (capped at 1,000 per km², so cities are "at least") |
 | Automatic voice call to keypad phones | **Not built yet**: on the roadmap |
-| Safe points and rescue teams | **Demo placeholders**: to be replaced with PDMA shelters and real Rescue 1122 stations |
+| Safe points | **Suggested** from OpenStreetMap + elevation (real buildings); must be confirmed by the PDMA |
+| Rescue teams | Real Rescue 1122 locations where OpenStreetMap has them, otherwise demo locations |
+| Before-the-flood replay | **Real past forecasts** (issued a day earlier), labelled REPLAY |
 | Arrival times | **Estimates** (straight-line distance at 25 km/h + 5 minutes) |
 
 ## What we tested, including what is weak
@@ -239,6 +279,11 @@ Live data (Open-Meteo, NASA) is fetched by each browser in both editions, so the
 | Report someone else | A phone in Sukkur reported 7 injured people at Ghotki; Rescue 1122 Ghotki was sent automatically and the reporter's phone showed it |
 | No signal | A report made with the connection cut was saved ("1 message waiting") and delivered when the connection returned |
 | No answer | A keypad dummy phone that received the SMS but never replied was added as "check on them" and got a team |
+| Fake alert (laptop edition) | The laptop refused an unsigned alert ("only the control room may send alerts"); the phone stayed calm |
+| Fake alert that got past the relay | The control room logged "BLOCKED a fake alert" and the phone ignored it; the real signed alert that followed reached the phone |
+| All clear | WARNING to Bahrain and Mingora, then ALL CLEAR for Mingora: the phone showed the green all-clear screen; automatic all-clear was sent a minute after Mingora returned to Normal |
+| Before-the-flood replay, 24–27 Aug 2025 | Automatic WARNING at Narowal 27 h and EVACUATE 26 h before its heaviest rain; Sialkot WARNING 20 h before; Lahore warned 15 h before as water came down the Ravi |
+| Buner, 15 Aug 2025 (honest check) | The day-ahead forecast stayed Normal at Pir Baba and Daggar — models missed the cloudburst |
 | NASA false alarms in the dry season | MODIS alone flagged water near Skardu and Mianwali in November; VIIRS did not, so the two-product rule now keeps them at Normal |
 | NASA tile server | Sometimes answers with an error; tiles are retried and failures are not cached |
 | Risk thresholds | **Not calibrated** against past floods |
@@ -253,7 +298,8 @@ Live data (Open-Meteo, NASA) is fetched by each browser in both editions, so the
   updated with a delay of hours. NASA rain (IMERG) is a few hours old; SMAP soil moisture is a few days old.
 - **Flash floods from cloudbursts are hard to forecast.** GloFAS works on a grid of about 5 km and suits rivers
   better than small mountain streams; rain forecasts can miss a local cloudburst.
-- **The thresholds are a demo rule.** A real deployment would set them with PDMA and PMD using past floods.
+- **The thresholds are calibrated on one monsoon (2025).** A real deployment would set them with PDMA and PMD over several seasons.
+- **Forecasts cannot see cloudbursts** (Buner, 15 Aug 2025): Khabardar relies on satellite rain, reports and SMS there; local rain gauges and PMD radar are needed.
 - **Radar "new water" can be harmless** (a barrage pond filling, flooded paddy fields), so radar alone only raises Watch.
   Each radar pass covers part of the country, so some places have no recent radar view.
 - **Arrival times are rough.** They are fixed travel times between places, not a river model; dams and barrages change them.
@@ -274,7 +320,9 @@ added to `web/audio/`). No AI-generated images are used.
 
 ## Disclosure: APIs, libraries and services
 
-- **Open-Meteo** Forecast API and Flood API: weather data by Open-Meteo.com (CC BY 4.0)
+- **Open-Meteo** Forecast, Flood, Previous Runs and Elevation APIs: weather data by Open-Meteo.com (CC BY 4.0); elevation from Copernicus DEM
+- **OpenStreetMap** data via the Overpass API (© OpenStreetMap contributors, ODbL) for suggested safe points and Rescue 1122 stations
+- **Web Crypto API** (ECDSA P-256, built into browsers) for signed alerts
 - **GloFAS** river discharge: Copernicus Emergency Management Service (via Open-Meteo)
 - **NASA GIBS** (Global Imagery Browse Services, EOSDIS): MODIS and VIIRS flood products (LANCE), GPM IMERG
   precipitation rate, SMAP L4 soil moisture, NASA JPL OPERA DSWx-S1 and RTC-S1 (from Copernicus Sentinel-1 radar),
@@ -324,7 +372,10 @@ hf upload Mansoorrn/khabardar web . --repo-type space
 4. **Every judge's phone sounds a siren** and shows and speaks the warning, with the reason. Pause for 2 seconds. Show the **Phone wall**.
 5. Ask one judge to tap **I need help** and pick *5–9 people, injured*. It appears at the top of the **Rescue queue** as HIGH, and 5 seconds later the nearest team is sent automatically: the judge's phone shows “Rescue 1122 Swat is on the way”.
 6. “And the officer is always in control”: show **Cancel**, **Hold**, the manual **SEND ALERT** and **Send team now**.
-7. **NASA replay:** pick *30 Aug 2022*: “This is what NASA satellites saw in the 2022 floods. Khabardar would have warned all of Sindh automatically.”
+   Switch the TEST off: a minute later the phones get **ALL CLEAR**.
+   Press **Fake-alert test**: “Can someone fake an alert? No — every alert is signed, and this one is blocked.”
+7. **Proof:** pick *Before-the-flood replay: 24–27 Aug 2025*: “Using only the forecast from a day earlier, Khabardar would have ordered Narowal to evacuate 26 hours before the heaviest rain.”
+   Optional: *NASA replay 30 Aug 2022* shows the satellite flood map of 2022.
 8. **Reset demo** clears alerts, answers, the rescue list, TEST scenarios and SIM phones and ends the replay (real and dummy phones stay).
 
 ## Phone tips
@@ -370,7 +421,9 @@ khabardar-demo/
     dashboard.html          # control room
     phone.html              # phone / PC receiver
     js/config.js            # relay setting (server.py replaces it with the local relay)
-    js/villages.js          # 58 places, flood types, river paths, demo safe points and demo rescue teams
+    js/villages.js          # 58 places, flood types, river paths and rescue teams
+    js/safepoints.js        # suggested safe points and Rescue 1122 stations (OpenStreetMap + elevation)
+    data/replay-2025-08-punjab.json   # before-the-flood replay (forecasts issued a day earlier)
     js/common.js            # alert texts, risk score, weather data, relay
     js/nasa.js              # NASA GIBS layers and pixel reading, NASA EONET events
     js/nasa-colormaps.js    # NASA colour keys (rain rate, soil moisture, flood classes)

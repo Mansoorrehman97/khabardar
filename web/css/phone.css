@@ -58,6 +58,9 @@ button{font-family:inherit;cursor:pointer}
 .opts button{font-size:16px;padding:11px 6px;border-radius:10px;border:1px solid var(--line);background:#0d1c2f;color:var(--ink)}
 .opts button.on{background:var(--accent);border-color:var(--accent);font-weight:800}
 #nasaLine{margin-top:4px}
+.allclear{background:#0f5132;justify-content:center;text-align:center}
+.allclear h2{font-size:38px!important}
+.allclear p{color:#e6fff0!important;font-size:19px;line-height:1.6}
 .outbox{background:#3a2410;border:1px solid #f28c28;border-radius:10px;padding:8px 10px;text-align:center}
 .big-title{font-size:24px;text-align:center}
 .why{background:rgba(0,0,0,.28);border-radius:12px;padding:8px 12px;margin:0;font-size:15px;line-height:1.5;text-align:center!important}
