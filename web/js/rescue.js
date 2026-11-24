@@ -21,31 +21,51 @@ const Rescue = (() => {
     s += Math.min(30, (Date.now() / 1000 - (r.t_help || Date.now() / 1000)) / 60) * 0.15;
     return { score: s, label: s >= 6 ? "HIGH" : s >= 3 ? "MEDIUM" : "LOW" };
   }
-  function nearestTeam(lat, lon, water) {
-    let best = null, bd = 1e9;
-    for (const t of RESCUE_TEAMS) {
-      let d = haversineKm(t.lat, t.lon, lat, lon);
-      if (water && t.kind === "boat") d /= 1.5;           // prefer a boat team when water is rising
-      if (d < bd) { bd = d; best = t; }
-    }
-    return best;
-  }
+  const BUSY_MIN = 25;        // each open job a team already has adds about 25 minutes before it can come
+  const AUTO_DELAY = 5;       // seconds before automatic dispatch, so an officer can press Hold
   const etaMin = (t, lat, lon) => Math.round(DISPATCH_MIN + (haversineKm(t.lat, t.lon, lat, lon) / SPEED_KMH) * 60);
+  const busy = (t) => Object.values(S.responses).filter((r) => r.status === "help" && r.rescue && r.rescue.status === "assigned" && r.rescue.team_id === t.id).length;
+  /* Best available team: travel time plus waiting for jobs it already has; boat teams preferred when water is rising. */
+  function bestTeam(lat, lon, water) {
+    let best = null, bc = 1e9, beta = 0;
+    for (const t of RESCUE_TEAMS) {
+      const eta = etaMin(t, lat, lon) + busy(t) * BUSY_MIN;
+      const cost = eta * (water && t.kind === "boat" ? 0.67 : 1);
+      if (cost < bc) { bc = cost; best = t; beta = eta; }
+    }
+    return { team: best, eta: beta };
+  }
 
   function share(r) {
     const p = S.phones[r.phone_id];
     if (!p || p.dummy || p.sim) return;
     publish(S.room, { type: "rescue", pid: r.phone_id, alert_id: r.alert_id, status: r.rescue.status, team: r.rescue.team, team_id: r.rescue.team_id, eta_min: r.rescue.eta_min });
   }
-  function assign(key, quiet) {
+  function assign(key, quiet, auto) {
     const r = S.responses[key];
     if (!r || r.status !== "help" || (r.rescue && r.rescue.status !== "waiting")) return false;
-    const w = where(r), team = nearestTeam(w.lat, w.lon, r.details && r.details.water), eta = etaMin(team, w.lat, w.lon);
-    r.rescue = { status: "assigned", team: team.name, team_id: team.id, eta_min: eta, t: Date.now() / 1000 };
+    const w = where(r), { team, eta } = bestTeam(w.lat, w.lon, r.details && r.details.water);
+    r.rescue = { status: "assigned", team: team.name, team_id: team.id, eta_min: eta, t: Date.now() / 1000, auto: !!auto };
     share(r);
-    addLog(`${team.name} sent to ${S.phones[r.phone_id]?.name || "caller"} (${VMAP[r.village_id].name}) — about ${eta} min`);
+    addLog(`${auto ? "AUTOMATIC: " : ""}${team.name} sent to ${S.phones[r.phone_id]?.name || "caller"} (${VMAP[r.village_id].name}) — about ${eta} min`);
     if (!quiet) scheduleRender();
     return true;
+  }
+  function hold(key) { const r = S.responses[key]; if (r) { r.autoHold = true; addLog(`Automatic dispatch held for ${S.phones[r.phone_id]?.name || "caller"} — officer will decide`); scheduleRender(); } }
+  /* Automatic mode: send the best available team to each waiting request, highest priority first. Returns true
+     while a countdown is showing, so the list can be redrawn every second. */
+  function autoTick() {
+    if (!S.auto || !S.auto.rescue) return false;
+    const t = Date.now() / 1000;
+    const waiting = list().filter((r) => (!r.rescue || r.rescue.status === "waiting") && !S.responses[r.key].autoHold)
+      .sort((a, b) => priority(b).score - priority(a).score);
+    for (const r of waiting) {
+      const x = S.responses[r.key];
+      if (!x.autoAt) x.autoAt = t + AUTO_DELAY;
+      else if (t >= x.autoAt) assign(r.key, true, true);
+    }
+    if (waiting.some((r) => S.responses[r.key].rescue && S.responses[r.key].rescue.status === "assigned")) scheduleRender();
+    return waiting.length > 0;
   }
   function done(key) {
     const r = S.responses[key];
@@ -92,8 +112,11 @@ const Rescue = (() => {
       const safeKm = haversineKm(w.lat, w.lon, v.safe.lat, v.safe.lon).toFixed(1);
       const loc = w.gps ? `GPS ${w.lat.toFixed(4)}, ${w.lon.toFixed(4)}` : "no GPS — search the village area";
       let status;
-      if (st === "waiting") status = `<b style="color:#ff9b9b">Waiting for a team</b> · ${fmtAgo(Date.now() / 1000 - (r.t_help || Date.now() / 1000))}`;
-      else if (st === "assigned") status = `<b style="color:#ffd9b0">${esc(r.rescue.team)} on the way</b> · about ${r.rescue.eta_min} min (estimate)`;
+      const x = S.responses[r.key] || {};
+      const autoLeft = st === "waiting" && S.auto && S.auto.rescue && !x.autoHold && x.autoAt ? Math.max(0, Math.ceil(x.autoAt - Date.now() / 1000)) : null;
+      if (st === "waiting") status = `<b style="color:#ff9b9b">Waiting for a team</b> · ${fmtAgo(Date.now() / 1000 - (r.t_help || Date.now() / 1000))}` +
+        (autoLeft != null ? ` · <b style="color:#9fd0ff">sending the best available team automatically in ${autoLeft} s</b>` : x.autoHold ? ' · <span class="muted">automatic dispatch on hold</span>' : "");
+      else if (st === "assigned") status = `<b style="color:#ffd9b0">${esc(r.rescue.team)} on the way</b> · about ${r.rescue.eta_min} min (estimate)${r.rescue.auto ? '<span class="autotag">AUTO</span>' : ""}`;
       else status = `<b style="color:#bff0d6">Rescued ✓</b> ${r.rescue.t_done ? fmtTime(r.rescue.t_done) : ""}`;
       return `<div class="rcard ${st}">
         <div class="rh"><span><span class="prio ${pr.label}">${pr.label}</span> <span class="rn">${esc(p.name || "Phone " + r.phone_id.slice(0, 4))}</span>${tag}</span>
@@ -102,7 +125,8 @@ const Rescue = (() => {
         <div class="muted">${loc} · safe point ${esc(v.safe.name)} ${safeKm} km away</div>
         <div>${status}</div>
         <div class="racts">
-          ${st === "waiting" ? `<button class="mini go" onclick="Rescue.assign('${r.key}')">Send nearest team</button>` : ""}
+          ${st === "waiting" ? `<button class="mini go" onclick="Rescue.assign('${r.key}')">Send team now</button>` : ""}
+          ${autoLeft != null ? `<button class="mini" onclick="Rescue.hold('${r.key}')">Hold</button>` : ""}
           ${st === "assigned" ? `<button class="mini ok" onclick="Rescue.done('${r.key}')">Mark rescued</button>` : ""}
           <button class="mini" onclick="Rescue.locate('${r.key}')">Show on map</button>
           <a href="${navUrl(w)}" target="_blank" rel="noopener">Directions for team ↗</a>
@@ -155,5 +179,5 @@ const Rescue = (() => {
     addLog(`Rescue list downloaded (${rows.length - 1} people)`);
   }
 
-  return { list, where, priority, assign, done, assignAll, applyRemote, render, drawMap, locate, csv, needsHtml };
+  return { list, where, priority, assign, hold, autoTick, done, assignAll, applyRemote, render, drawMap, locate, csv, needsHtml };
 })();

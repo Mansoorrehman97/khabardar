@@ -4,7 +4,8 @@ const S = {
   phones: {}, responses: {}, alerts: [], currentAlert: null, resetAt: 0,
   selected: new Set(), mode: "villages", zoneCenter: null, radiusKm: 20,
   markers: {}, responderMarkers: {}, rescueMarkers: {}, rescueLines: {}, zoneCircle: null, nasaLayers: {}, layers: {},
-  tab: "rescue", province: "all"
+  tab: "rescue", province: "all",
+  auto: null, pendingAuto: null, autoCancelled: {}, historyReady: false
 };
 const LEVEL_COLOR = { normal: "#2bb673", watch: "#f5c542", warning: "#f28c28", evacuate: "#e5383b" };
 const STATUS_COLOR = { sent: "#c9d6e5", delivered: "#7fc8ff", played: "#f5c542", safe: "#2bb673", help: "#e5383b" };
@@ -245,20 +246,120 @@ function phoneMatches(p, alert) {
   return null;
 }
 
-$("sendBtn").addEventListener("click", async () => {
-  const villages = [...S.selected];
-  if (!villages.length) { $("sendResult").textContent = "Choose at least one place or draw a zone."; toast("First choose a place on the map (or draw a zone), then press SEND ALERT"); return; }
-  const alert = { type: "alert", id: Math.random().toString(36).slice(2, 10), level: $("level").value, villages,
-                  center: S.mode === "zone" ? S.zoneCenter : null, radius_km: S.mode === "zone" ? S.radiusKm : null,
-                  test: $("isTest").checked, t: now() };
-  $("sendBtn").disabled = true; $("sendResult").textContent = "Sending…";
+/* One way to send an alert, used by the SEND button and by automatic mode. */
+async function sendAlert({ villages, level, center = null, radius_km = null, test, auto = false }) {
+  const reasons = {};
+  for (const id of villages) { const r = reasonOf(S.live && S.live.villages[id]); if (r) reasons[id] = r; }
+  const fromTestData = villages.some((id) => S.live && (S.live.villages[id].test || S.live.villages[id].replay));
+  const alert = { type: "alert", id: Math.random().toString(36).slice(2, 10), level, villages, center, radius_km,
+                  test: test || fromTestData, auto, reasons, t: now() };
+  $("sendBtn").disabled = true; $("sendResult").textContent = auto ? "Sending automatic alert…" : "Sending…";
   const ok = await publish(S.room, alert);
   setTimeout(() => ($("sendBtn").disabled = false), 800);
-  if (!ok) { $("sendResult").textContent = "Could not reach the relay — check the connection and press SEND again."; return; }
+  if (!ok) { $("sendResult").textContent = "Could not reach the relay — check the connection and press SEND again."; toast("Alert NOT sent — the relay is not reachable"); return false; }
   handle(alert, true);
   zoomToAlert(alert);
   setTab("wall");
+  return true;
+}
+$("sendBtn").addEventListener("click", () => {
+  const villages = [...S.selected];
+  if (!villages.length) { $("sendResult").textContent = "Choose at least one place or draw a zone."; toast("First choose a place on the map (or draw a zone), then press SEND ALERT"); return; }
+  sendAlert({ villages, level: $("level").value, center: S.mode === "zone" ? S.zoneCenter : null, radius_km: S.mode === "zone" ? S.radiusKm : null, test: $("isTest").checked });
 });
+
+// ---------------------------------------------------------------- automatic mode
+const LEVEL_RANK = { normal: 0, watch: 1, warning: 2, evacuate: 3 };
+const LEVEL_BY_RANK = ["normal", "watch", "warning", "evacuate"];
+const AUTO_COOLDOWN = 6 * 3600;   // a place is not alerted again at the same level for 6 hours (it can still escalate)
+function autoKey() { return "kh_auto_" + S.room; }
+function loadAuto() {
+  let a = {};
+  try { a = JSON.parse(localStorage.getItem(autoKey()) || "{}"); } catch (e) { /* ignore */ }
+  S.auto = Object.assign({ alerts: true, rescue: true, threshold: "warning", delay: 10 }, a);
+  $("autoAlerts").checked = S.auto.alerts; $("autoRescue").checked = S.auto.rescue;
+  $("autoLevel").value = S.auto.threshold; $("autoDelay").value = String(S.auto.delay);
+}
+function saveAuto() {
+  S.auto = { alerts: $("autoAlerts").checked, rescue: $("autoRescue").checked, threshold: $("autoLevel").value, delay: +$("autoDelay").value };
+  localStorage.setItem(autoKey(), JSON.stringify(S.auto));
+  if (!S.auto.alerts) cancelAuto(false);
+  addLog(`Automatic mode: alerts ${S.auto.alerts ? "ON at " + S.auto.threshold.toUpperCase() + "+" : "OFF"}, rescue dispatch ${S.auto.rescue ? "ON" : "OFF"}`);
+  renderAutoStatus(); autoCheck(); scheduleRender();
+}
+["autoAlerts", "autoRescue", "autoLevel", "autoDelay"].forEach((id) => $(id).addEventListener("change", saveAuto));
+
+function alertedLevel(vid) {   // highest level already sent to this place recently (manual or automatic)
+  let best = 0;
+  const t0 = now() - AUTO_COOLDOWN;
+  for (const a of S.alerts) if ((a.t || 0) >= t0 && a.villages.includes(vid)) best = Math.max(best, LEVEL_RANK[a.level] || 0);
+  const c = S.autoCancelled[vid];
+  if (c && now() - c.t < 3600) best = Math.max(best, c.rank);   // an officer cancelled: wait an hour unless it gets worse
+  return best;
+}
+function autoDue() {
+  if (!S.live) return [];
+  const th = LEVEL_RANK[S.auto.threshold];
+  return VILLAGES.filter((v) => { const r = LEVEL_RANK[S.live.villages[v.id].level]; return r >= th && r > alertedLevel(v.id); });
+}
+function autoCheck() {
+  renderAutoStatus();
+  if (!S.auto || !S.auto.alerts || !S.historyReady || S.pendingAuto || !S.live) return;
+  const due = autoDue();
+  if (!due.length) return;
+  const top = Math.max(...due.map((v) => LEVEL_RANK[S.live.villages[v.id].level]));
+  const villages = due.filter((v) => LEVEL_RANK[S.live.villages[v.id].level] === top).map((v) => v.id);
+  // a little random extra wait, so two control rooms in automatic mode do not both send the same alert
+  S.pendingAuto = { level: LEVEL_BY_RANK[top], villages, due: now() + S.auto.delay + Math.random() * 2 };
+  addLog(`AUTOMATIC: ${LEVEL_BY_RANK[top].toUpperCase()} detected for ${villages.map((id) => VMAP[id].name).join(", ")} — alert in ${S.auto.delay} s unless cancelled`);
+  renderPending();
+  if (S.auto.delay > 0) toast(`Automatic ${LEVEL_BY_RANK[top]} alert in ${S.auto.delay} s — ${villages.length} place(s). Cancel in panel 1 if needed.`, 5000);
+}
+async function fireAuto() {
+  const p = S.pendingAuto; if (!p) return;
+  S.pendingAuto = null; renderPending();
+  const villages = p.villages.filter((id) => LEVEL_RANK[p.level] > alertedLevel(id));   // another room may have sent it already
+  if (!villages.length) { addLog("AUTOMATIC: alert already sent by another control room — skipped"); autoCheck(); return; }
+  const ok = await sendAlert({ villages, level: p.level, test: $("isTest").checked, auto: true });
+  if (ok) toast(`Automatic ${p.level.toUpperCase()} alert sent to ${villages.length} place(s)`);
+  setTimeout(autoCheck, 500);   // places at a lower level get their own alert next
+}
+function cancelAuto(byOfficer) {
+  const p = S.pendingAuto; if (!p) return;
+  S.pendingAuto = null;
+  if (byOfficer) {
+    for (const id of p.villages) S.autoCancelled[id] = { rank: LEVEL_RANK[p.level], t: now() };
+    addLog(`AUTOMATIC alert cancelled by the officer (${p.villages.map((id) => VMAP[id].name).join(", ")}) — paused for 1 hour unless the risk gets worse`);
+    toast("Automatic alert cancelled");
+  }
+  renderPending(); renderAutoStatus();
+}
+$("autoSendNow").addEventListener("click", () => { if (S.pendingAuto) { S.pendingAuto.due = 0; fireAuto(); } });
+$("autoCancel").addEventListener("click", () => cancelAuto(true));
+function renderPending() {
+  const p = S.pendingAuto, box = $("autoPending");
+  if (!p) { box.hidden = true; return; }
+  box.hidden = false;
+  box.className = "auto-pending " + p.level;
+  const left = Math.max(0, Math.ceil(p.due - now()));
+  const why = p.villages.slice(0, 4).map((id) => `${VMAP[id].name}: ${reasonText(reasonOf(S.live.villages[id]), "en")}`).join(" · ");
+  $("autoPendingText").innerHTML = `AUTOMATIC ${esc(p.level.toUpperCase())} ALERT in <b>${left} s</b> → ${esc(p.villages.map((id) => VMAP[id].name).join(", "))}<div class="small" style="font-weight:400">${esc(why)}${p.villages.length > 4 ? " …" : ""}</div>`;
+}
+function renderAutoStatus() {
+  if (!S.auto) return;
+  const on = S.auto.alerts || S.auto.rescue;
+  $("autoPill").textContent = on ? "ON" : "OFF"; $("autoPill").className = "pill" + (on ? "" : " off");
+  if (!S.auto.alerts) { $("autoStatus").textContent = "Automatic alerts are OFF — send alerts with the manual controls below."; return; }
+  if (!S.historyReady) { $("autoStatus").textContent = "Connecting to the relay…"; return; }
+  const n = S.live ? VILLAGES.filter((v) => LEVEL_RANK[S.live.villages[v.id].level] >= LEVEL_RANK[S.auto.threshold]).length : 0;
+  $("autoStatus").textContent = `Watching ${VILLAGES.length} places${S.replay ? " (NASA replay)" : ""} · checked ${fmtTime(now())} · ${n} at ${S.auto.threshold} or higher` +
+    (n && !autoDue().length ? " — all already alerted (or cancelled by an officer)" : "");
+}
+setInterval(() => {
+  if (S.pendingAuto) { if (now() >= S.pendingAuto.due) fireAuto(); else renderPending(); }
+  if (Rescue.autoTick()) Rescue.render();
+}, 1000);
+setInterval(autoCheck, 30000);
 function zoomToAlert(alert) {
   if (alert.center && S.zoneCircle) { map.fitBounds(S.zoneCircle.getBounds()); return; }
   const pts = alert.villages.map((id) => VMAP[id]).flatMap((v) => [[v.lat, v.lon], [v.safe.lat, v.safe.lon]]);
@@ -280,8 +381,11 @@ function handle(m, local) {
   if (m.type === "reset") {
     if (t > S.resetAt) {
       S.resetAt = t; S.responses = {}; S.alerts = []; S.currentAlert = null; S.scenario = {};
+      S.pendingAuto = null; S.autoCancelled = {}; renderPending();
       for (const id of Object.keys(S.phones)) if (S.phones[id].sim) delete S.phones[id];
-      $("log").innerHTML = ""; $("sendResult").textContent = ""; drawAlertArea(null); recompute();
+      $("log").innerHTML = ""; $("sendResult").textContent = ""; drawAlertArea(null);
+      if (S.replay) { $("nasaDate").value = "latest"; setReplay(null); }   // a reset also ends a NASA replay
+      recompute();
       addLog("Demo reset — alerts, answers, rescue list, TEST scenarios and SIM phones cleared (real and dummy phones stay)");
     }
   } else if (t < S.resetAt) {
@@ -304,8 +408,9 @@ function handle(m, local) {
       if (p.dummy || p.sim) Dummies.simulate(m, p);
     }
     drawAlertArea(m);
-    $("sendResult").textContent = `Sent to ${n} phone(s) at ${fmtTime(m.t || t)}${sms ? ` · ${sms} by SMS` : ""}.`;
-    addLog(`${m.level.toUpperCase()} sent to ${n} phone(s) — ${m.villages.map((v) => VMAP[v].name).join(", ")}${m.test ? " [DEMO]" : ""}`);
+    $("sendResult").textContent = `${m.auto ? "Automatic alert sent" : "Sent"} to ${n} phone(s) at ${fmtTime(m.t || t)}${sms ? ` · ${sms} by SMS` : ""}.`;
+    addLog(`${m.auto ? "AUTOMATIC " : ""}${m.level.toUpperCase()} sent to ${n} phone(s) — ${m.villages.map((v) => VMAP[v].name).join(", ")}${m.test ? " [DEMO]" : ""}`);
+    if (S.pendingAuto) renderPending();
   } else if (m.type === "ack" || m.type === "respond") {
     const key = m.alert_id + "|" + m.pid;
     let r = S.responses[key];
@@ -418,7 +523,8 @@ window.showPhone = (pid) => {
     const tx = buildTexts(a.level, v)[p.lang] || buildTexts(a.level, v).en, rtl = p.lang !== "en";
     const safe = rtl ? v.safe.name_ur : v.safe.name;
     body = `<div class="pm-phone"><div class="pm-screen ${a.level}" dir="${rtl ? "rtl" : "ltr"}">${a.test ? '<div class="small">DEMO</div>' : ""}<h3>${esc(tx.title)}</h3>
-      <b>${esc(rtl ? v.name_ur : v.name)}</b><p>${esc(tx.body)}</p><div class="pm-safe">→ ${esc(safe)}</div>
+      <b>${esc(rtl ? v.name_ur : v.name)}</b><p>${esc(tx.body)}</p>
+      ${a.reasons && a.reasons[r.village_id] ? `<p class="small">${esc(reasonText(a.reasons[r.village_id], p.lang))}</p>` : ""}<div class="pm-safe">→ ${esc(safe)}</div>
       <div class="pm-btns"><span style="background:#1f9d5c">${p.lang === "en" ? "I'm safe" : "✓"}</span><span style="background:#d62828">${p.lang === "en" ? "I need help" : "!"}</span></div></div></div>`;
   }
   const meta = r ? `Status: <b>${esc(statusText(r, p))}</b>${r.details ? "<br>Help details: " + Rescue.needsHtml(r.details) : ""}${r.rescue ? `<br>Rescue: <b>${esc(r.rescue.status)}</b>${r.rescue.team ? " · " + esc(r.rescue.team) : ""}` : ""}` : "";
@@ -470,6 +576,7 @@ async function refreshLive(force) {
 function recompute() {
   S.live = liveView({ wx: S.wx, nasa: S.nasa, scenario: S.scenario, replay: S.replay });
   renderBadges(); renderRiskTable(); drawVillages(); drawDanger(); renderPreview();
+  autoCheck();
 }
 function renderBadges() {
   const b = $("srcBadge"), n = $("nasaBadge");
@@ -565,9 +672,12 @@ setInterval(() => { if (S.tab === "rescue" && Rescue.list().length) Rescue.rende
   window.addEventListener("resize", () => map.invalidateSize());
   Dummies.init();
   drawVillages(); renderSelection(); renderAll();
+  loadAuto(); renderAutoStatus();
   subscribe(S.room, "12h", (m) => handle(m, false), (st) => {
     $("relayBadge").textContent = st === "ok" ? (CFG.edition === "local" ? "Local relay connected" : "Relay connected") : "Relay reconnecting…";
     $("relayBadge").className = "badge " + (st === "ok" ? "live" : "off");
+    // let the room's history arrive before automatic mode decides anything (so nothing is sent twice after a reload)
+    if (st === "ok" && !S.historyReady && !S._historyTimer) S._historyTimer = setTimeout(() => { S.historyReady = true; autoCheck(); }, 2500);
   });
   refreshLive();
   drawEvents();

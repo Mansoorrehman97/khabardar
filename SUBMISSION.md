@@ -32,8 +32,9 @@ a voice, and helps rescuers reach those who need help.
 ## Short description (about 50 words)
 
 Khabardar watches 58 flood-prone places in Pakistan with live rain and river forecasts and NASA satellite data.
-One button makes every phone in the danger area ring with a siren and a spoken warning in Urdu or English, with
-the nearest safe point. People reply "I'm safe" or "I need help", and the nearest rescue team is sent.
+When danger is detected, it automatically makes every phone in the area ring with a siren and a spoken warning in
+Urdu or English, with the nearest safe point. People reply "I'm safe" or "I need help", and the nearest rescue team
+is sent automatically. Officers can cancel or act manually.
 
 ## Full description (about 200 words)
 
@@ -43,11 +44,13 @@ district, and nobody knows who received them.
 
 Khabardar does three jobs. **Watch:** for 58 flood-prone places it combines rain forecasts (Open-Meteo), river
 discharge (GloFAS) and NASA satellite data — flood water seen by MODIS and VIIRS, rain from space (GPM IMERG) and
-soil wetness (SMAP) — into a simple 0–100 risk score and a flood map. **Warn:** a disaster officer presses one
-button and every phone that chose that place rings with a siren, vibration and a spoken and written warning in
-Urdu or English, plus the nearest safe point and a route; keypad phones get an SMS. **Help:** people tap "I'm
-safe" or "I need help" and say who is injured, elderly, a child or pregnant. The control room ranks requests,
-sends the nearest rescue team, and the person's phone shows that help is on the way.
+soil wetness (SMAP) — into a simple 0–100 risk score and a flood map. **Warn:** when a place reaches Warning, the
+control room sends the alert automatically after a 10-second countdown an officer can cancel (or an officer sends
+it with one button). Every phone that chose that place rings with a siren, vibration and a spoken and written
+warning in Urdu or English, the reason, the nearest safe point and a route; keypad phones get an SMS. **Help:**
+people tap "I'm safe" or "I need help" and say who is injured, elderly, a child or pregnant. The control room
+ranks requests, automatically sends the best available rescue team, and the person's phone shows that help is on
+the way.
 
 It runs in any phone browser with no app install. A NASA replay of the 2022 floods shows the risk map turning
 Sindh red from real satellite data, and the live demo makes the judges' own phones ring.
@@ -62,7 +65,10 @@ Sindh red from real satellite data, and the live demo makes the judges' own phon
 ## Solution
 
 - Place-level risk from live rain and river data **plus NASA satellites** that see flood water, rain and wet ground.
-- One-button alert to every phone in the danger area: siren, vibration, voice and text in Urdu or English; SMS for keypad phones.
+- **Automatic** alerts when a place reaches the danger level (with a countdown, cancel and escalation), plus
+  one-button manual alerts: siren, vibration, voice and text in Urdu or English, with the reason; SMS for keypad phones.
+- **Automatic** rescue dispatch of the best available team (travel time plus the team's current jobs), with Hold
+  and manual dispatch.
 - Tells people what to do: the nearest safe point, its distance and a route.
 - Two-way: "I'm safe" / "I need help" with GPS and help details, a rescue queue ranked by urgency, nearest-team
   dispatch with an estimated arrival time, and "help is on the way" back on the person's phone.
@@ -76,6 +82,10 @@ Sindh red from real satellite data, and the live demo makes the judges' own phon
   clear view). Risk = the highest, capped at 100.
 - **NASA data without a key:** the app reads NASA GIBS map tiles in the browser and turns pixel colours back into
   values with NASA's published colour keys. NASA EONET adds recent floods and storms to the map.
+- **Automatic mode:** after every risk update the control room finds places at or above the chosen level that
+  were not alerted at that level in the last 6 hours, groups them by level, counts down (default 10 s, with Send
+  now / Cancel) and sends the alert; escalation is sent at once. Help requests get the best available team after
+  5 s unless held. History is read first after a reload, so nothing is sent twice.
 - **Alerts:** the control room sends a short message; each phone builds the warning in its language, plays a Web
   Audio siren and speaks it with the phone's text-to-speech (or recorded audio), and sends back receipts, answers
   and help details. The rescue status flows back to the phone.
@@ -127,11 +137,12 @@ the control room, delivery by SMS and voice call, and setup and training for the
 ## How judges can try it
 
 1. Open the control room on a laptop: https://mansoorrn-khabardar.static.hf.space/dashboard.html
-2. No phone needed: in **Map layers → NASA date**, choose **NASA replay: 30 Aug 2022**, click **Select places at
-   Warning+**, then **SEND ALERT**, and open the **Phone wall** and **Rescue queue** tabs.
+2. No phone needed: in **Map layers → NASA date**, choose **NASA replay: 30 Aug 2022** and wait. Automatic mode
+   alerts 14 places by itself; open the **Phone wall** and **Rescue queue** tabs to see phones ringing and teams
+   being sent.
 3. With a phone: scan the QR code, choose the place *Mingora*, tap **Turn ON Khabardar**; in the control room click
-   **Mingora** → **Simulate heavy rain (TEST)** → **Evacuate now** → **SEND ALERT**. The phone rings; tap
-   **I need help**, then press **Send nearest team** in the control room.
+   **Mingora** → **Simulate heavy rain (TEST)**. About 10 seconds later the phone rings automatically; tap
+   **I need help** and a rescue team is assigned automatically.
 
 ## Video plan (2 minutes or less)
 
@@ -140,8 +151,8 @@ the control room, delivery by SMS and voice call, and setup and training for the
 | 0:00–0:12 | Flood photo or news headline, then title | "In 2025, 85 out of 100 families in Buner and Swat got no flood warning." |
 | 0:12–0:25 | Control room: LIVE and NASA badges, 58 places | "Khabardar watches 58 places with live forecasts and NASA satellites." |
 | 0:25–0:45 | NASA replay 30 Aug 2022: blue flood water, Sindh turns red | "This is what NASA satellites saw in 2022. Khabardar turns it into a warning." |
-| 0:45–1:20 | Phone joins by QR → TEST heavy rain → SEND ALERT → phone siren and voice (record with sound); Phone wall | "One button, and every phone in the village rings." |
-| 1:20–1:45 | Phone: I need help + details → Rescue queue HIGH → Send nearest team → phone shows team on the way | "Rescuers know who needs help first, and the family knows help is coming." |
+| 0:45–1:20 | Phone joins by QR → TEST heavy rain → automatic countdown → phone siren and voice (record with sound); Phone wall | "Nobody presses a button. Khabardar warns every phone in the village automatically." |
+| 1:20–1:45 | Phone: I need help + details → Rescue queue HIGH → team sent automatically → phone shows team on the way; show Cancel / Hold | "Rescuers know who needs help first, the family knows help is coming, and the officer stays in control." |
 | 1:45–2:00 | Links on screen | "Free for people. Built for Pakistan's floods. Khabardar." |
 
 Label the heavy-rain scenario as a TEST and the dummy phones as DUMMY in the video, as the app does.

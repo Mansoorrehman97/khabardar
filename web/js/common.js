@@ -32,6 +32,23 @@ function buildTexts(level, v) {
   }
   return out;
 }
+/* Why a place is at risk, in a form every phone can show in its own language. */
+const REASON_TEXT = {
+  rain: { en: "Heavy rain expected: {v} mm in 24 hours (up to {h} mm in one hour)", ur: "شدید بارش متوقع: 24 گھنٹوں میں {v} ملی میٹر (ایک گھنٹے میں {h} ملی میٹر تک)" },
+  river: { en: "River rising: {v} times its normal flow", ur: "دریا چڑھ رہا ہے: معمول سے {v} گنا بہاؤ" },
+  satellite: { en: "NASA satellites see flood water nearby ({v}% of the area)", ur: "ناسا سیٹلائٹ کو قریب سیلابی پانی نظر آیا (علاقے کا {v} فیصد)" }
+};
+function reasonOf(d) {
+  if (!d || !d.score) return null;
+  if (d.driver === "satellite") return { driver: "satellite", v: Math.round((d.nasa_flood_frac || 0) * 100) };
+  if (d.driver === "river") return { driver: "river", v: d.river_ratio };
+  return { driver: "rain", v: Math.round(d.rain_24h || 0), h: Math.round(Math.max(d.rain_max_1h || 0, d.nasa_rain_now || 0)) };
+}
+function reasonText(r, lang) {
+  if (!r || !REASON_TEXT[r.driver]) return "";
+  return (REASON_TEXT[r.driver][lang] || REASON_TEXT[r.driver].en).replace("{v}", r.v ?? "").replace("{h}", r.h ?? "");
+}
+
 /* Short SMS text for keypad phones (Roman Urdu reads on every handset). */
 function smsText(level, v, test) {
   const head = { watch: "KHABARDAR - Sailab ka khatra", warning: "KHABARDAR - Sailab warning", evacuate: "KHABARDAR - FORAN GHAR KHALI KAREIN" }[level];

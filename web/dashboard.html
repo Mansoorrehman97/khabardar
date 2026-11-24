@@ -69,7 +69,20 @@
 
   <aside class="side">
     <div class="panel">
-      <div class="panel-h">1 · Send alert</div>
+      <div class="panel-h">1 · Alerts — automatic and manual</div>
+      <div class="autobox" id="autoBox">
+        <div class="auto-h">AUTOMATIC MODE <span class="pill" id="autoPill">ON</span></div>
+        <label><input type="checkbox" id="autoAlerts" checked> Send alerts automatically when a place reaches
+          <select id="autoLevel" class="small-select"><option value="watch">Watch</option><option value="warning" selected>Warning</option><option value="evacuate">Evacuate</option></select></label>
+        <label>Wait <select id="autoDelay" class="small-select"><option value="0">0 s</option><option value="10" selected>10 s</option><option value="30">30 s</option><option value="60">60 s</option></select> first, so an officer can cancel</label>
+        <label><input type="checkbox" id="autoRescue" checked> Send the nearest available rescue team automatically to people who ask for help</label>
+        <div class="small muted" id="autoStatus">Starting…</div>
+        <div class="auto-pending" id="autoPending" hidden>
+          <div id="autoPendingText"></div>
+          <div class="row"><button class="mini go" id="autoSendNow">Send now</button><button class="mini danger" id="autoCancel">Cancel this alert</button></div>
+        </div>
+      </div>
+      <div class="manual-h">Manual alert</div>
       <div class="row">
         <label class="seg"><input type="radio" name="mode" value="villages" checked> Selected places</label>
         <label class="seg"><input type="radio" name="mode" value="zone"> Draw zone</label>

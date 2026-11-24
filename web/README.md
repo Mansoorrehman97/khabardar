@@ -16,6 +16,8 @@ Capital Youth Expo 2026 · Hackathon 04-HK · Track 4.
 
 - **Control room:** `dashboard.html` (laptop / projector). It shows a QR code with a private room link.
   About 85 dummy phones (labelled DUMMY) are built in, so it can be tried without real phones.
+  **Automatic mode** sends alerts when a place reaches Warning (after a 10-second countdown that can be cancelled)
+  and sends the nearest available rescue team to help requests; everything can also be done manually.
 - **Phones:** scan the QR code → `phone.html?room=…` → choose Urdu or English and a place → **Turn ON Khabardar**.
 
 This edition runs entirely in the browser:

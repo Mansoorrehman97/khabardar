@@ -30,24 +30,29 @@ spoken warning in Urdu or English** (keypad phones get an SMS), tells people **w
 **"I'm safe"** or **"I need help"**. The control room sees who was warned, who heard the siren and who needs
 rescue, sends the **nearest rescue team**, and the person's phone is told that **help is on the way**.
 
+It works **automatically**: when a place reaches Warning, the control room counts down 10 seconds (so an officer
+can cancel) and sends the alert by itself, and it sends the best available rescue team to each person who asks for
+help. Every step can also be done **manually**.
+
 This is a hackathon demo. The risk score is a simple, transparent rule, not a calibrated forecast. In real use,
-the alert would be sent by a disaster management officer (PDMA / NDMA / Rescue 1122).
+the automatic rules would be agreed with the disaster management authority (PDMA / NDMA / Rescue 1122).
 
 ## What it does
 
 | Step | What happens | Example |
 |---|---|---|
 | **1. WATCH** | Rain forecasts, river discharge and NASA satellite data (flood water, rain from space, soil wetness) for 58 places become a 0–100 risk score and a flood map | "NASA satellites see flood water around Dadu: Evacuate." |
-| **2. WARN** | The officer presses one button. Every phone that chose that place rings with a siren, vibration and a voice and written warning in Urdu or English, plus the nearest safe point and a walking route. Keypad phones get an SMS | "Khabardar! Sailab aa raha hai. Foran oonchi jagah jaayein." |
-| **3. HELP** | People tap "I'm safe" or "I need help" and can add how many people are with them and who is injured, elderly, a child or pregnant. The control room ranks requests by urgency, sends the nearest team, and the phone shows "Rescue 1122 is on the way, about 10 minutes" | Rescue teams see exactly who needs help first, and where |
+| **2. WARN** | **Automatically** when a place reaches Warning (after a 10-second countdown an officer can cancel), or with one button. Every phone that chose that place rings with a siren, vibration and a voice and written warning in Urdu or English, the reason ("heavy rain expected", "river rising", "NASA satellites see flood water"), the nearest safe point and a route. Keypad phones get an SMS | "Khabardar! Sailab aa raha hai. Foran oonchi jagah jaayein." |
+| **3. HELP** | People tap "I'm safe" or "I need help" and can add how many people are with them and who is injured, elderly, a child or pregnant. The control room ranks requests by urgency and **automatically** sends the best available team (or the officer does), and the phone shows "Rescue 1122 is on the way, about 10 minutes" | Rescue teams see exactly who needs help first, and where |
 
 ## Try it in one minute (no phone needed)
 
-1. Open the **[control room](https://mansoorrn-khabardar.static.hf.space/dashboard.html)** on a laptop. About 85 **dummy phones** across Pakistan are already loaded (labelled DUMMY).
+1. Open the **[control room](https://mansoorrn-khabardar.static.hf.space/dashboard.html)** on a laptop. About 85 **dummy phones** across Pakistan are already loaded (labelled DUMMY), and **Automatic mode** is ON.
 2. In **Map layers → NASA date**, choose **NASA replay: 30 Aug 2022**. NASA's satellite flood map of the 2022 floods appears in blue, and Sukkur, Dadu, Larkana, Mehar, Jacobabad and others turn red.
-3. Click **Select places at Warning+** → **SEND ALERT**. Open the **Phone wall** tab: each dummy phone rings with the warning in its language; click one to see its screen.
-4. Watch answers arrive. Open the **Rescue queue**, press **Send nearest team**, then **Mark rescued**.
-5. With a real phone: scan the QR code, choose a place, tap **Turn ON Khabardar**, send an alert to that place, and tap **I need help** on the phone.
+3. **Do nothing.** After a 10-second countdown, Khabardar sends EVACUATE to 10 places and WARNING to 4 more by itself. Open the **Phone wall** tab: each dummy phone rings with the warning in its language; click one to see its screen.
+4. Open the **Rescue queue**: people asking for help are ranked by urgency, and the best available team is sent automatically after 5 seconds (press **Hold** to decide yourself). Press **Mark rescued** when done.
+5. Manual control: untick automatic alerts, select places on the map, choose a level and press **SEND ALERT**; or press **Send team now** on a request.
+6. With a real phone: scan the QR code, choose a place, tap **Turn ON Khabardar**, click that place on the map → **Simulate heavy rain (TEST)**, and the alert arrives automatically. Tap **I need help** on the phone.
 
 ## Built on open data
 
@@ -83,6 +88,22 @@ published colour keys (`web/js/nasa-colormaps.js`). No NASA account or key is ne
     alarms such as mountain shadows. A MODIS-only reading is capped at Watch when VIIRS should exist but is unavailable.
 - Risk = the highest of the three, capped at 100 → **Normal < 30 ≤ Watch < 55 ≤ Warning < 80 ≤ Evacuate**
 
+**Automatic mode** (in the control room, ON by default, settings saved per room):
+
+- **Alerts:** whenever risk is updated (every 15 minutes for weather, every hour for NASA, at once for TEST scenarios
+  and NASA replays, and every 30 seconds), every place at or above the chosen level (Watch, Warning or Evacuate;
+  default Warning) that has not been alerted at that level in the last 6 hours gets an automatic alert. Places at
+  the same level go in one alert, highest level first. A countdown (0, 10, 30 or 60 seconds; default 10) shows the
+  places and the reason with **Send now** and **Cancel**. A cancelled place is left alone for an hour unless its
+  risk gets worse. A place that gets worse (for example Warning → Evacuate) is alerted again at once.
+- **Rescue:** each new help request gets the best available team after 5 seconds unless the officer presses
+  **Hold**. "Best available" = travel time (straight line at 25 km/h + 5 minutes) plus 25 minutes for every job the
+  team already has; boat teams are preferred when water is rising.
+- After a reload the control room first reads the room's history, so nothing is sent twice. With two control rooms
+  in automatic mode, a small random extra wait lets the second one see the first one's alert and skip it.
+- Automatic mode runs in the control room page, so keep that page open (as an operations-room screen would be).
+  A real deployment would run the same rules on a server.
+
 **Who gets the alert.** Each phone picks its home place and, optionally, a family member's place. An alert for a
 place reaches every phone that chose it, so a son in Karachi is told when Dadu is warned. Phones elsewhere are
 not disturbed. The officer can also draw a zone on the map.
@@ -106,7 +127,9 @@ Live data (Open-Meteo, NASA) is fetched by each browser in both editions, so the
 - Map of 58 places coloured by risk, danger zones around places at risk, NASA layers (flood water, rain from space,
   soil wetness, flood history, satellite photo, NASA EONET events) and a **NASA date** picker with replays of
   the **30 Aug 2022** Sindh and Balochistan floods and **5 Sep 2025** Punjab floods
-- **Send alert**: places or a drawn zone, **Select places at Warning+** in one click, level, English and Urdu
+- **Automatic mode**: automatic alerts (level and countdown can be changed) with **Send now** / **Cancel**, and
+  automatic rescue dispatch with **Hold**; both can be switched off
+- **Manual alert**: places or a drawn zone, **Select places at Warning+** in one click, level, English and Urdu
   preview, SMS preview, and how many phones it will reach
 - **Who got the warning**: phones, warned, received, safe, need help, no answer yet, counted live
 - **Rescue queue**: requests ranked HIGH / MEDIUM / LOW by injuries, rising water, elderly, pregnant, children,
@@ -152,6 +175,11 @@ Live data (Open-Meteo, NASA) is fetched by each browser in both editions, so the
 | Control room reload in the middle of a rescue | Alerts, help details and team status rebuilt from the relay history |
 | Online edition (ntfy.sh): phone join and alert | Phone received the alert; control room counted "siren played" |
 | NASA replay 30 Aug 2022 | Sukkur, Dadu, Larkana, Mehar, Dera Allahyar, Dera Murad Jamali, Nowshera reach Evacuate; Jacobabad, Sanghar, Khairpur, Rajanpur, D.I. Khan reach Warning or above |
+| Automatic mode, TEST heavy rain at Mingora, no clicks | Countdown started at once; EVACUATE sent to 7 phones after 10 s; the real phone showed "Automatic warning — why: heavy rain 165 mm in 24 hours" in Urdu |
+| Automatic rescue | The phone's help request got Rescue 1122 Swat after 5 s and the phone showed "on the way, about 10 minutes" |
+| Automatic mode with the 2022 replay | EVACUATE to 10 places, then WARNING to 4 more, by itself; every dummy help request got its nearest team |
+| Cancel during the countdown (Bahrain) | No alert sent; Bahrain left alone for an hour |
+| Reset demo | Clears alerts and rescue list and ends a NASA replay |
 | NASA false alarms in the dry season | MODIS alone flagged water near Skardu and Mianwali in November; VIIRS did not, so the two-product rule now keeps them at Normal |
 | NASA tile server | Sometimes answers with an error; tiles are retried and failures are not cached |
 | Risk thresholds | **Not calibrated** against past floods |
@@ -226,13 +254,13 @@ hf upload Mansoorrn/khabardar web . --repo-type space
 ## Stage demo (about 2 minutes)
 
 1. **Before the pitch:** judges scan the QR code → choose **Urdu** or **English** and a place (e.g. *Mingora*) → tap **Turn ON Khabardar**. Ask them to keep the page open and the media volume up.
-2. Show the **LIVE** and **NASA satellite** badges and the risk table: “live rain, rivers and NASA satellites for 58 places”.
-3. **NASA replay:** pick *30 Aug 2022*: “This is what NASA satellites saw in the 2022 floods. Khabardar would have turned Sindh red automatically.” Switch back to **Latest**.
-4. Click **Mingora** → **Simulate heavy rain (TEST)**. Make sure Mingora is selected, choose **Evacuate now**, press **SEND ALERT**.
-5. **Every judge's phone sounds a siren** and shows and speaks the warning. Pause for 2 seconds. Show the **Phone wall**.
-6. Ask one judge to tap **I need help** and pick *5–9 people, injured*. It appears at the top of the **Rescue queue** as HIGH.
-7. Press **Send nearest team**: the judge's phone shows “Rescue 1122 Swat is on the way”. Press **Mark rescued**.
-8. **Reset demo** clears alerts, answers, the rescue list, TEST scenarios and SIM phones (real and dummy phones stay).
+2. Show the **LIVE** and **NASA satellite** badges, the risk table and **Automatic mode: ON**: “live rain, rivers and NASA satellites for 58 places, watched automatically”.
+3. Click **Mingora** → **Simulate heavy rain (TEST)**, then take your hands off the laptop: “Heavy rain is detected. Nobody presses anything.” The 10-second countdown appears.
+4. **Every judge's phone sounds a siren** and shows and speaks the warning, with the reason. Pause for 2 seconds. Show the **Phone wall**.
+5. Ask one judge to tap **I need help** and pick *5–9 people, injured*. It appears at the top of the **Rescue queue** as HIGH, and 5 seconds later the nearest team is sent automatically: the judge's phone shows “Rescue 1122 Swat is on the way”.
+6. “And the officer is always in control”: show **Cancel**, **Hold**, the manual **SEND ALERT** and **Send team now**.
+7. **NASA replay:** pick *30 Aug 2022*: “This is what NASA satellites saw in the 2022 floods. Khabardar would have warned all of Sindh automatically.”
+8. **Reset demo** clears alerts, answers, the rescue list, TEST scenarios and SIM phones and ends the replay (real and dummy phones stay).
 
 ## Phone tips
 
@@ -287,7 +315,7 @@ khabardar-demo/
 ## Roadmap
 
 Native Android app that rings even when locked, automatic voice calls and SMS to keypad phones on every network,
-PDMA approval workflow, real shelter and Rescue 1122 station lists, Sentinel-1 radar flood mapping through cloud,
+automatic mode running on a server around the clock, "all clear" messages when the danger passes, PDMA approval workflow, real shelter and Rescue 1122 station lists, Sentinel-1 radar flood mapping through cloud,
 and an "Ask Khabardar" voice helper.
 
 ## Sources for the figures above

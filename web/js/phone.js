@@ -17,7 +17,8 @@ const T = {
     rescued: "The control room has marked you as rescued. Stay safe.", gpsShared: "Your location was shared with the rescue team.",
     gpsNot: "Location not shared — rescuers will search your village area.", away: "{km} km away",
     nasaClear: "NASA satellite: no flood water seen near you", nasaFlood: "NASA satellite: flood water seen near you", nasaCloud: "NASA satellite: cloudy, no clear view",
-    sending: "Sending…", sentOk: "Your answer reached the control room.", sendFail: "Could not send — check your internet and tap Try again.", retry: "Try again" },
+    sending: "Sending…", sentOk: "Your answer reached the control room.", sendFail: "Could not send — check your internet and tap Try again.", retry: "Try again",
+    why: "WHY", autoWhy: "AUTOMATIC WARNING — WHY" },
   ur: { tagline: "سیلاب کی وارننگ آپ کے فون پر — آپ کی زبان میں، پانی آنے سے پہلے۔", langLabel: "زبان",
     villageLabel: "آپ کا گاؤں / شہر", familyLabel: "گھر والوں کا گاؤں بھی دیکھیں (اختیاری)", nameLabel: "آپ کا نام (اختیاری)",
     gps: "میری درست جگہ امدادی ٹیموں کو بتائیں", start: "خبردار آن کریں",
@@ -34,7 +35,8 @@ const T = {
     rescued: "کنٹرول روم نے آپ کو بچا لیا گیا درج کر دیا ہے۔ محفوظ رہیں۔", gpsShared: "آپ کی جگہ امدادی ٹیم کو بتا دی گئی۔",
     gpsNot: "جگہ نہیں بتائی گئی — امدادی ٹیم آپ کے گاؤں کے علاقے میں تلاش کرے گی۔", away: "{km} کلومیٹر دور",
     nasaClear: "ناسا سیٹلائٹ: آپ کے قریب سیلابی پانی نظر نہیں آیا", nasaFlood: "ناسا سیٹلائٹ: آپ کے قریب سیلابی پانی نظر آیا", nasaCloud: "ناسا سیٹلائٹ: بادل ہیں، صاف منظر نہیں",
-    sending: "بھیجا جا رہا ہے…", sentOk: "آپ کا جواب کنٹرول روم تک پہنچ گیا۔", sendFail: "نہیں بھیجا جا سکا — انٹرنیٹ چیک کریں اور دوبارہ کوشش کریں۔", retry: "دوبارہ کوشش کریں" },
+    sending: "بھیجا جا رہا ہے…", sentOk: "آپ کا جواب کنٹرول روم تک پہنچ گیا۔", sendFail: "نہیں بھیجا جا سکا — انٹرنیٹ چیک کریں اور دوبارہ کوشش کریں۔", retry: "دوبارہ کوشش کریں",
+    why: "وجہ", autoWhy: "خودکار وارننگ — وجہ" },
 };
 const RTL = { ur: true, en: false };
 const $ = (id) => document.getElementById(id);
@@ -184,7 +186,7 @@ function onRelay(m) {
     const vid = myVillageFor(m);
     if (!vid) return;
     const v = VMAP[vid];
-    showAlert({ alert_id: m.id, level: m.level, test: m.test, village: v, safe: v.safe, texts: buildTexts(m.level, v) });
+    showAlert({ alert_id: m.id, level: m.level, test: m.test, village: v, safe: v.safe, texts: buildTexts(m.level, v), auto: !!m.auto, reason: (m.reasons || {})[vid] || null });
   }
 }
 
@@ -196,6 +198,9 @@ function showAlert(a) {
   $("aTitle").textContent = tx.title;
   $("aPlace").textContent = vName(a.village);
   $("aBody").textContent = tx.body;
+  const why = reasonText(a.reason, lang);
+  $("aWhy").hidden = !why && !a.auto;
+  $("aWhy").innerHTML = `<b>${escHtml(t(a.auto ? "autoWhy" : "why"))}</b>${escHtml(why)}`;
   $("aSafe").textContent = RTL[lang] ? a.safe.name_ur || a.safe.name : a.safe.name;
   const from = coords || a.village;
   $("aDist").textContent = t("away", { km: haversineKm(from.lat, from.lon, a.safe.lat, a.safe.lon).toFixed(1) });
