@@ -13,7 +13,7 @@ h1{font-size:34px;margin:12px 0 4px;letter-spacing:.04em;text-align:center}
 .field{margin-bottom:14px}
 .field label{display:block;font-weight:700;margin-bottom:6px}
 select,input{width:100%;font-size:17px;padding:12px;border-radius:10px;border:1px solid var(--line);background:#0d1c2f;color:var(--ink)}
-.langs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.langs{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
 .langs button{font-size:17px;padding:10px 4px;border-radius:10px;border:1px solid var(--line);background:#0d1c2f;color:var(--ink)}
 .langs button.on{background:var(--accent);border-color:var(--accent);font-weight:800}
 .check{display:flex;gap:8px;align-items:center;margin:4px 0 12px}
@@ -48,3 +48,13 @@ button{font-family:inherit;cursor:pointer}
 .safe-name{font-size:22px;font-weight:900;margin:2px 0 8px}
 .route{display:inline-block;background:#fff;color:#111;font-weight:800;padding:10px 16px;border-radius:10px;text-decoration:none}
 .demo-tag{position:fixed;top:10px;right:10px;background:#fff;color:#b3001b;font-weight:900;padding:3px 8px;border-radius:6px;font-size:12px}
+[hidden]{display:none!important}
+.rescue-box{border-color:#f28c28;background:#3a2410;font-size:17px;line-height:1.5;text-align:center}
+.rescue-box.done{border-color:#2bb673;background:#123524}
+.dtitle{font-weight:800;font-size:17px;margin-bottom:10px}
+[dir=rtl] .dtitle{text-align:right}
+.opts{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.opts.wrap{grid-template-columns:1fr 1fr}
+.opts button{font-size:16px;padding:11px 6px;border-radius:10px;border:1px solid var(--line);background:#0d1c2f;color:var(--ink)}
+.opts button.on{background:var(--accent);border-color:var(--accent);font-weight:800}
+#nasaLine{margin-top:4px}
