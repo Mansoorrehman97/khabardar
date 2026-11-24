@@ -1,6 +1,19 @@
+---
+title: Khabardar
+emoji: 🚨
+colorFrom: red
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+short_description: Flood warning on every phone, in every language
+---
+
 # Khabardar — flood warning on every phone, in every language, before the water comes
 
 **Capital Youth Expo 2026 · Hackathon 04-HK · Track 4 (Smart Agriculture & Climate)**
+
+> **Live demo (Hugging Face Space):** open `/dashboard` for the control room and `/phone` on phones.
 
 Khabardar does three things:
 
@@ -76,7 +89,14 @@ different request formats — adjust `send_sms()` in `server.py` to match the ap
 
 ## Deploy a live link (for the submission)
 
-The rules ask for a public repository **and** a working live link. This folder is ready for **Render** (free):
+**Hugging Face Spaces (free, no card) — what this project uses:** create a Space with SDK **Docker** (blank),
+then push this repository to it (`git push` to `https://huggingface.co/spaces/<user>/khabardar`, using a
+Hugging Face access token with *write* permission as the password). The `Dockerfile` and the settings block at the
+top of this README tell the Space how to run the app on port 7860. The app is then live at
+`https://<user>-khabardar.hf.space/dashboard` and `/phone`. Free Spaces sleep after a long period without visitors
+and wake up on the next visit.
+
+**Render (alternative)** — note that Render asks for a payment card even for its free plan. This folder is also ready for Render:
 it contains `render.yaml`, an empty `requirements.txt` and reads the `PORT` variable automatically.
 
 1. Put this folder in a **public GitHub repository** (git push, or GitHub website → *Add file → Upload files* and drag the folder's contents in).
