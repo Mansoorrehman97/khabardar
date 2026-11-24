@@ -1,19 +1,16 @@
----
-title: Khabardar
-emoji: 🚨
-colorFrom: red
-colorTo: indigo
-sdk: docker
-app_port: 7860
-pinned: false
-short_description: Flood warning on every phone, in every language
----
-
 # Khabardar — flood warning on every phone, in every language, before the water comes
 
 **Capital Youth Expo 2026 · Hackathon 04-HK · Track 4 (Smart Agriculture & Climate)**
 
-> **Live demo (Hugging Face Space):** open `/dashboard` for the control room and `/phone` on phones.
+> **Live demo:** https://mansoorrn-khabardar.static.hf.space — open **Control room** (`dashboard.html`) on a laptop;
+> phones join by scanning its QR code. (Space page: https://huggingface.co/spaces/Mansoorrn/khabardar)
+
+This repository has two editions of the same app:
+
+| Edition | Folder | Best for |
+|---|---|---|
+| **Local server** (Python, no internet relay) | root: `server.py`, `static/` | **The live pitch** — most reliable on your own hotspot |
+| **Static online** (browser only, free hosting) | `static-site/` | **The submission's live link** — runs on a free Hugging Face static Space |
 
 Khabardar does three things:
 
@@ -89,12 +86,17 @@ different request formats — adjust `send_sms()` in `server.py` to match the ap
 
 ## Deploy a live link (for the submission)
 
-**Hugging Face Spaces (free, no card) — what this project uses:** create a Space with SDK **Docker** (blank),
-then push this repository to it (`git push` to `https://huggingface.co/spaces/<user>/khabardar`, using a
-Hugging Face access token with *write* permission as the password). The `Dockerfile` and the settings block at the
-top of this README tell the Space how to run the app on port 7860. The app is then live at
-`https://<user>-khabardar.hf.space/dashboard` and `/phone`. Free Spaces sleep after a long period without visitors
-and wake up on the next visit.
+**What this project uses — free Hugging Face *static* Space (no card):** Hugging Face now requires a PRO
+subscription for Docker/Gradio Spaces, but static Spaces are free. The `static-site/` folder is a browser-only
+edition: live data comes straight from Open-Meteo/GloFAS, and messages between the control room and phones go
+through the free public **ntfy.sh** relay on a random room topic (anyone with the room link can read that room's
+messages; the free relay has rate limits). To update the Space after changes:
+
+```
+hf upload Mansoorrn/khabardar static-site . --repo-type space
+```
+
+The `Dockerfile` is kept for hosts that run containers (e.g. a Hugging Face PRO Docker Space).
 
 **Render (alternative)** — note that Render asks for a payment card even for its free plan. This folder is also ready for Render:
 it contains `render.yaml`, an empty `requirements.txt` and reads the `PORT` variable automatically.
@@ -144,6 +146,7 @@ This is a simple, honest demo rule. A real deployment would calibrate thresholds
 - **GloFAS** river discharge — Copernicus Emergency Management Service (via Open-Meteo)
 - **Leaflet** 1.9.4 (map library) and **OpenStreetMap** map tiles © OpenStreetMap contributors
 - **qrcodejs** 1.0.0 (QR code on the dashboard)
+- **ntfy.sh** public relay (static online edition only) and **Hugging Face Spaces** (free static hosting)
 - **AI coding assistant:** Claude (Anthropic) was used to help write this code during the build window.
 
 ## Roadmap
