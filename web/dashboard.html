@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Khabardar — Control Room</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="vendor/leaflet.css">
 <link rel="stylesheet" href="css/dashboard.css">
 </head>
 <body>
@@ -37,18 +37,24 @@
   <section class="map-wrap">
     <div id="map"></div>
     <div class="layers" id="layersBox">
-      <div class="layers-h" id="layersToggle">Map layers ▾</div>
-      <div class="layers-body" id="layersBody">
+      <div class="layers-h" id="layersToggle">Map layers ▸</div>
+      <div class="layers-body" id="layersBody" hidden>
         <div class="lg">NASA satellite</div>
-        <label><input type="checkbox" data-layer="flood" checked> Flood water seen by satellite <span class="muted">(MODIS, 3-day)</span></label>
+        <label><input type="checkbox" data-layer="flood" checked> Flood water seen by satellite <span class="muted">(MODIS / VIIRS, 3-day)</span></label>
+        <label><input type="checkbox" data-layer="radar"> Radar water, sees through clouds <span class="muted">(Sentinel-1, NASA OPERA)</span></label>
+        <label><input type="checkbox" data-layer="radarimg"> Radar image <span class="muted">(Sentinel-1, NASA OPERA)</span></label>
         <label><input type="checkbox" data-layer="rain"> Rain from space <span class="muted">(GPM IMERG)</span></label>
         <label><input type="checkbox" data-layer="soil"> Soil wetness <span class="muted">(SMAP)</span></label>
+        <label><input type="checkbox" data-layer="snow"> Snow cover <span class="muted">(VIIRS)</span></label>
+        <label><input type="checkbox" data-layer="pop"> Where people live <span class="muted">(NASA SEDAC 2020)</span></label>
         <label><input type="checkbox" data-layer="hazard"> Flood history 1985–2003</label>
+        <label><input type="checkbox" data-layer="landslide"> Landslide hazard</label>
         <label><input type="checkbox" data-layer="events" checked> NASA flood &amp; storm events <span class="muted">(EONET)</span></label>
         <label><input type="checkbox" data-layer="truecolor"> Satellite photo <span class="muted">(VIIRS)</span></label>
         <div class="lg">NASA date</div>
         <select id="nasaDate"><option value="latest">Latest (today)</option></select>
         <div class="lg">Khabardar</div>
+        <label><input type="checkbox" data-layer="flows" checked> Where the flood goes next (river paths &amp; arrival times)</label>
         <label><input type="checkbox" data-layer="danger" checked> Danger zones around places</label>
         <label><input type="checkbox" data-layer="safe" checked> Safe points (demo)</label>
         <label><input type="checkbox" data-layer="teams" checked> Rescue teams (demo)</label>
@@ -63,6 +69,7 @@
       <span><i class="sq"></i>Safe point</span>
       <span><i class="sw"></i>Satellite flood water</span>
       <span><i class="tm">+</i>Rescue team</span>
+      <span><i class="fl"></i>Flood moving downstream</span>
     </div>
     <div class="map-hint" id="mapHint">Click places to select them · or switch to “Draw zone” and click the map</div>
   </section>
@@ -129,6 +136,15 @@
           <button class="mini" id="csvBtn" title="Download the rescue list for field teams">Download rescue list (CSV)</button>
         </div>
         <div id="rescueList"><span class="muted small">Nobody has asked for help yet. People who tap “I need help” appear here, highest priority first.</span></div>
+        <details class="smsbox">
+          <summary>SMS help line — for people without the app</summary>
+          <div class="small muted">Any phone, even a keypad phone with no internet, can send an SMS such as <b>MADAD Dadu 5 zakhmi</b>
+            (help · place · people · injured) to the Khabardar number. With an SMS-gateway phone connected to the laptop edition,
+            it appears here automatically. Try it:</div>
+          <div class="row"><input id="smsFrom" placeholder="Phone number (optional)" maxlength="16" class="txt">
+            <input id="smsText" placeholder="e.g. MADAD Mehar 6 pani buzurg" maxlength="160" class="txt wide"></div>
+          <button class="mini go" id="smsSend">Simulate incoming SMS</button>
+        </details>
       </div>
       <div class="tabbody" id="tab-phones" hidden><div class="plist" id="plist"></div></div>
       <div class="tabbody" id="tab-wall" hidden><div class="wall" id="wall"></div></div>
@@ -138,6 +154,7 @@
       <div class="panel-h">3 · Flood risk by place
         <span><select id="provFilter" class="small-select"><option value="all">All Pakistan</option></select>
         <button class="mini" id="refreshBtn">Refresh</button></span></div>
+      <div class="impact" id="impactLine"></div>
       <div class="risk-wrap">
         <table class="risk">
           <thead><tr><th>Place</th><th>Rain 24h</th><th>River</th><th>NASA satellite</th><th>Risk</th></tr></thead>
@@ -175,8 +192,8 @@
   </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="vendor/leaflet.js"></script>
+<script src="vendor/qrcode.min.js"></script>
 <script src="js/config.js"></script>
 <script src="js/villages.js"></script>
 <script src="js/nasa-colormaps.js"></script>

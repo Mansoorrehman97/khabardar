@@ -86,6 +86,52 @@ const VILLAGES = _PLACES.map(([id, name, name_ur, district, province, river, lat
   safe: { name: SAFE_NAMES[si][0], name_ur: SAFE_NAMES[si][1], lat: +(lat + dlat).toFixed(4), lon: +(lon + dlon).toFixed(4) }
 }));
 
+/* Flood types for each place (Pakistan has several kinds of flood, each with its own warning signs). */
+const _HAZ = {
+  flash: ["mingora", "bahrain", "madyan", "kalam", "daggar", "pirbaba", "alpuri", "chitral", "dir", "dasu", "balakot", "gilgit", "karimabad", "skardu", "muzaffarabad", "quetta", "zhob", "uthal", "turbat", "sibi", "jhalmagsi"],
+  urban: ["karachi", "lahore", "rawalpindi", "peshawar", "hyderabad", "quetta", "sialkot", "multan"],
+  // glacier melt / glacial lake outburst: daytime temperature (°C) above which melt becomes dangerous at this valley town
+  glof: { chitral: 36, gilgit: 37, karimabad: 30, skardu: 32, kalam: 26, dasu: 39, bahrain: 30 },
+  // hill torrents: rain is watched in the hills upstream, where the torrent starts
+  torrent: { dgkhan: [29.99, 69.95, "Koh-e-Suleman"], rajanpur: [29.25, 69.85, "Koh-e-Suleman"], taunsa: [30.75, 69.95, "Koh-e-Suleman"],
+             dikhan: [31.95, 70.25, "Sheikh Budin hills"], jhalmagsi: [27.85, 66.75, "Mula River hills"], sibi: [30.0, 68.2, "Nari River hills"],
+             jacobabad: [28.55, 67.55, "Kirthar & Bolan hills"], deraallahyar: [28.6, 67.7, "Kirthar & Bolan hills"], deramuradjamali: [28.9, 67.7, "Bolan hills"] },
+  coastal: ["karachi", "thatta", "badin"]
+};
+const HAZARD_NAMES = { river: "river flood", flash: "flash flood / cloudburst", urban: "city flooding", glof: "glacier melt / glacial lake outburst", torrent: "hill torrent", coastal: "coastal storm & surge" };
+for (const v of VILLAGES) {
+  v.hz = ["river"];
+  if (_HAZ.flash.includes(v.id)) v.hz.push("flash");
+  if (_HAZ.urban.includes(v.id)) v.hz.push("urban");
+  if (_HAZ.glof[v.id]) { v.hz.push("glof"); v.heat = _HAZ.glof[v.id]; }
+  if (_HAZ.torrent[v.id]) { v.hz.push("torrent"); v.up = _HAZ.torrent[v.id]; }
+  if (_HAZ.coastal.includes(v.id)) v.hz.push("coastal");
+}
+
+/* Where flood water goes next: [from, to, rough flood-wave travel time in hours, river]. Travel times are rough
+   estimates for the demo; a real system would use the river authority's routing times. */
+const RIVER_LINKS = [
+  ["kalam", "bahrain", 3, "Swat River"], ["bahrain", "madyan", 1, "Swat River"], ["madyan", "mingora", 3, "Swat River"],
+  ["daggar", "mingora", 6, "Barandu → Swat River"], ["pirbaba", "daggar", 1, "Barandu"], ["alpuri", "mingora", 8, "Shangla streams → Swat River"],
+  ["mingora", "charsadda", 8, "Swat River"], ["dir", "charsadda", 12, "Panjkora → Swat River"], ["charsadda", "nowshera", 4, "Kabul River"],
+  ["chitral", "peshawar", 36, "Chitral (Kunar) → Kabul River"], ["peshawar", "nowshera", 6, "Kabul River"], ["nowshera", "attock", 6, "Kabul River"],
+  ["karimabad", "gilgit", 5, "Hunza River"], ["gilgit", "dasu", 10, "Gilgit River → Indus"], ["skardu", "dasu", 14, "Indus River"],
+  ["dasu", "attock", 30, "Indus (Tarbela)"], ["attock", "mianwali", 14, "Indus River"], ["mianwali", "dikhan", 18, "Indus River"],
+  ["dikhan", "layyah", 10, "Indus River"], ["layyah", "taunsa", 12, "Indus River"], ["taunsa", "dgkhan", 10, "Indus River"],
+  ["dgkhan", "rajanpur", 20, "Indus River"], ["rajanpur", "kashmore", 14, "Indus (Guddu)"], ["kashmore", "ghotki", 8, "Indus River"],
+  ["ghotki", "sukkur", 12, "Indus (Sukkur barrage)"], ["sukkur", "khairpur", 4, "Indus River"], ["sukkur", "larkana", 14, "Indus River"],
+  ["larkana", "mehar", 10, "Indus River"], ["mehar", "dadu", 6, "Indus / Manchar"], ["dadu", "hyderabad", 48, "Indus (Kotri)"],
+  ["hyderabad", "thatta", 14, "Indus River"],
+  ["balakot", "muzaffarabad", 5, "Kunhar → Jhelum"], ["muzaffarabad", "jhelum", 30, "Jhelum (Mangla)"], ["jhelum", "jhang", 40, "Jhelum River"],
+  ["marala", "wazirabad", 6, "Chenab River"], ["sialkot", "wazirabad", 10, "Nullah Aik → Chenab"], ["wazirabad", "jhang", 36, "Chenab River"],
+  ["jhang", "multan", 24, "Chenab River"], ["multan", "muzaffargarh", 8, "Chenab River"], ["muzaffargarh", "kashmore", 40, "Chenab → Panjnad → Indus"],
+  ["narowal", "lahore", 18, "Ravi River"], ["lahore", "multan", 72, "Ravi → Chenab"],
+  ["kasur", "bahawalnagar", 36, "Sutlej River"], ["bahawalnagar", "kashmore", 80, "Sutlej → Panjnad → Indus"],
+  ["jhalmagsi", "deramuradjamali", 12, "Mula River torrents"], ["sibi", "deramuradjamali", 10, "Nari River"],
+  ["deramuradjamali", "deraallahyar", 8, "flood water over the plains"], ["deraallahyar", "jacobabad", 10, "flood water over the plains"],
+  ["jacobabad", "larkana", 24, "flood water over the plains"]
+];
+
 const PROVINCE_NAMES = { KP: "Khyber Pakhtunkhwa", GB: "Gilgit-Baltistan", AJK: "Azad Kashmir", Punjab: "Punjab", Sindh: "Sindh", Balochistan: "Balochistan" };
 const PROVINCE_UR = { KP: "خیبر پختونخوا", GB: "گلگت بلتستان", AJK: "آزاد کشمیر", Punjab: "پنجاب", Sindh: "سندھ", Balochistan: "بلوچستان" };
 

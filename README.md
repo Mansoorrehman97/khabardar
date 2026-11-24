@@ -41,9 +41,9 @@ the automatic rules would be agreed with the disaster management authority (PDMA
 
 | Step | What happens | Example |
 |---|---|---|
-| **1. WATCH** | Rain forecasts, river discharge and NASA satellite data (flood water, rain from space, soil wetness) for 58 places become a 0–100 risk score and a flood map | "NASA satellites see flood water around Dadu: Evacuate." |
+| **1. WATCH** | For 58 places and six kinds of flood (river, flash flood, city flooding, glacial lake outburst, hill torrent, coastal storm): rain, temperature and wind forecasts, river discharge 7 days ahead, and NASA satellite data (flood water, **radar water through clouds**, rain from space, soil wetness, population) become a 0–100 risk score, a flood map, **where the flood goes next with arrival times**, and **how many people are affected** | "Flood water from Mingora expected at Charsadda in about 8 hours." |
 | **2. WARN** | **Automatically** when a place reaches Warning (after a 10-second countdown an officer can cancel), or with one button. Every phone that chose that place rings with a siren, vibration and a voice and written warning in Urdu or English, the reason ("heavy rain expected", "river rising", "NASA satellites see flood water"), the nearest safe point and a route. Keypad phones get an SMS | "Khabardar! Sailab aa raha hai. Foran oonchi jagah jaayein." |
-| **3. HELP** | People tap "I'm safe" or "I need help" and can add how many people are with them and who is injured, elderly, a child or pregnant. The control room ranks requests by urgency and **automatically** sends the best available team (or the officer does), and the phone shows "Rescue 1122 is on the way, about 10 minutes" | Rescue teams see exactly who needs help first, and where |
+| **3. HELP** | People tap "I'm safe" or "I need help" and can add how many people are with them and who is injured, elderly, a child or pregnant. People **without the app** send an SMS ("MADAD Dadu 5 zakhmi"), or a neighbour with the app **reports** them. Phones that **do not answer** in a danger area are flagged for a check. The control room ranks everyone by urgency and **automatically** sends the best available team (or the officer does), and the phone shows "Rescue 1122 is on the way, about 10 minutes". With no signal, the phone **saves** the request and sends it when the signal returns | Rescue teams see exactly who needs help first, and where |
 
 ## Try it in one minute (no phone needed)
 
@@ -63,6 +63,14 @@ the automatic rules would be agreed with the disaster management authority (PDMA
 | **Flood water seen by satellite** (3-day) | **NASA** LANCE flood products from **MODIS** (Terra + Aqua) and **VIIRS** (NOAA-20 + NOAA-21), via NASA GIBS | Satellite flood score and the blue flood map; replay of past floods |
 | **Rain from space** (latest half-hour) | **NASA GPM IMERG** precipitation rate, via NASA GIBS | Observed rain added to the rain score; map layer |
 | **Soil wetness** | **NASA SMAP** Level-4 root-zone soil moisture, via NASA GIBS | Wet ground raises the rain score by up to 50% |
+| **Radar water (sees through clouds and at night)** | **NASA JPL OPERA** DSWx-S1 surface water from **Sentinel-1 radar**, via NASA GIBS | New water (last 3 days compared with 6 weeks earlier); map layer |
+| Radar image | NASA JPL OPERA RTC-S1 (Sentinel-1 radar backscatter), via NASA GIBS | Map layer |
+| **Where people live** | **NASA SEDAC** Gridded Population of the World v4, 2020, via NASA GIBS | People within 6 km, in danger zones and under flood water |
+| Snow cover | NASA VIIRS (NOAA-20) snow cover, via NASA GIBS | Map layer (glacier and snow-melt areas) |
+| Landslide hazard | NASA SEDAC Global Landslide Hazard, via NASA GIBS | Map layer |
+| Temperature and wind gusts | Open-Meteo Forecast API | Glacier melt in heatwaves (Gilgit-Baltistan, Chitral); coastal storms (Karachi, Thatta, Badin) |
+| Rain in the hills upstream | Open-Meteo Forecast API at points in the Koh-e-Suleman, Kirthar, Bolan and other hills | Hill torrents (D.G. Khan, Rajanpur, Taunsa, D.I. Khan, Jhal Magsi, Sibi, Jacobabad…) |
+| River paths | `web/js/villages.js`: 49 links between places with rough flood-wave travel times | Where the flood goes next, and when |
 | Flood history | NASA SEDAC Global Flood Hazard 1985–2003, via NASA GIBS | Map layer |
 | Satellite photo | NASA VIIRS (NOAA-20) true colour, via NASA GIBS | Map background option |
 | Recent disasters | **NASA EONET** (Earth Observatory Natural Event Tracker) | Floods, storms and landslides of the last 12 months on the map |
@@ -76,17 +84,28 @@ published colour keys (`web/js/nasa-colormaps.js`). No NASA account or key is ne
 
 ## How it works
 
-**Risk score** (the same for every place, and easy to explain):
+**Risk score.** Every place has one or more flood types, and each type has its own score (easy to explain):
 
-- Rain score = (heaviest hour of rain × 6 + next-24-hour rain × 1.2) × wet-ground factor
-  - heaviest hour = the larger of the forecast and NASA's latest observed rain rate
-  - wet-ground factor = 1.0 when NASA SMAP soil moisture is 0.20 m³/m³ or less, rising to 1.5 at 0.45 or more
-- River score = (3-day peak discharge ÷ median of the past 30 days − 1) × 60
-- Satellite score, from the share of land within 6 km that NASA sees under flood water:
-  1–5% → Watch (35–50), 5% → Warning (55), about 13% or more → Evacuate
-  - when both NASA flood products (MODIS and VIIRS) have a clear view, **both must agree**; this removes false
-    alarms such as mountain shadows. A MODIS-only reading is capped at Watch when VIIRS should exist but is unavailable.
-- Risk = the highest of the three, capped at 100 → **Normal < 30 ≤ Watch < 55 ≤ Warning < 80 ≤ Evacuate**
+| Score | Rule | Flood types |
+|---|---|---|
+| Rain | (heaviest hour × 6 + next-24-hour rain × 1.2) × wet-ground factor × terrain factor. Heaviest hour = forecast or NASA IMERG observed, whichever is larger; wet ground (NASA SMAP 0.20 → 0.45 m³/m³) × 1.0 → 1.5; steep valleys × 1.25, cities × 1.3 | all; flash floods; city flooding |
+| River | (peak ÷ 30-day median − 1) × 60 for the next 3 days, or × 0.7 for the 7-day peak (further ahead, less certain) | river floods |
+| Hill torrent | the rain score of a point in the hills upstream × 0.9 | hill torrents |
+| Glacier melt | (hottest day in 3 days − the town's danger temperature + 2) × 12, at most Warning | glacial lake outburst |
+| Coastal storm | (strongest wind gust − 42 km/h) × 1.25 | coastal storm and surge |
+| Satellite | share of land within 6 km under flood water: 1–5% Watch, 5% Warning, about 13% Evacuate. MODIS and VIIRS must agree when both see the ground. NASA radar new water alone can only raise Watch | any |
+| Flood from upstream | a place in Warning or Evacuate passes 80% of its score to the next place downstream (at most Warning), 65% two steps down, 50% further (at most Watch, within 48 hours) | river floods |
+
+Risk = the highest score, capped at 100 → **Normal < 30 ≤ Watch < 55 ≤ Warning < 80 ≤ Evacuate**. The phone shows the
+reason in Urdu or English, for example "Flood water from Mingora expected here in about 8 hours".
+
+**Where the flood goes next.** 49 river links (Swat → Kabul River → Indus → Sukkur → Hyderabad → Thatta; Chenab,
+Jhelum, Ravi, Sutlej; hill-torrent and plains routes in Balochistan and upper Sindh) carry each danger downstream with a
+rough arrival time. The map shows moving lines and "≈ 8 h" labels, and automatic mode warns the places downstream.
+
+**People affected.** NASA SEDAC population density (2020) within 6 km of each place gives the people living there,
+the people inside the danger zone (3, 6 or 10 km for Watch, Warning, Evacuate) and the people under the flood water
+NASA sees. NASA's population map stops at 1,000 people per km², so city figures are "at least".
 
 **Automatic mode** (in the control room, ON by default, settings saved per room):
 
@@ -103,6 +122,29 @@ published colour keys (`web/js/nasa-colormaps.js`). No NASA account or key is ne
   in automatic mode, a small random extra wait lets the second one see the first one's alert and skip it.
 - Automatic mode runs in the control room page, so keep that page open (as an operations-room screen would be).
   A real deployment would run the same rules on a server.
+
+**Help for people without the app.**
+- **SMS help line:** any phone, even a keypad phone with no internet, sends for example `MADAD Dadu 5 zakhmi` (help ·
+  place · people · injured; also `pani` water rising, `buzurg` elderly, `bachay` children, `hamla` pregnant, Urdu script
+  works too; `1` = safe). An Android SMS-gateway phone forwards it to the laptop (`POST /sms/incoming`), and it appears in
+  the rescue queue and gets a team automatically. In the online edition, the control room has a box to simulate it.
+- **Report someone else:** a neighbour with the app reports people who need help (place or GPS, how many, injured…,
+  landmark). The reporter is told when a team is on the way.
+- **No answer = check on them:** a phone that was warned (Warning or Evacuate) but has not answered within 2 minutes
+  (a demo value; real use would wait 15–30 minutes) is added to the rescue queue as "no answer — check on them".
+
+**When there is no internet or no signal.**
+- An alert is a message over a network, so **no phone can receive a new alert with no connection at all**. Khabardar
+  therefore warns **early** (hours to days ahead, while networks still work) and uses every connection that still works:
+  - **internet** (online edition);
+  - **local Wi-Fi with no internet and no SIM signal** (laptop edition: a laptop and a Wi-Fi router at a union council
+    office or relief camp are the whole network; the control room now opens without internet because the map library
+    is bundled, only the map background and live data need internet);
+  - **SMS**, which needs only a little mobile signal (keypad alerts by SMS gateway; help by SMS).
+- After an alert has arrived, the phone keeps the alert, safe point and distance on screen without a connection.
+- "I'm safe", "I need help", help details and reports are **saved on the phone** when there is no connection and **sent
+  automatically** when the signal returns.
+- Once opened over https (online edition) or on the laptop, the app is kept on the phone, so it still **opens** offline.
 
 **Who gets the alert.** Each phone picks its home place and, optionally, a family member's place. An alert for a
 place reaches every phone that chose it, so a son in Karachi is told when Dadu is warned. Phones elsewhere are
@@ -129,6 +171,10 @@ Live data (Open-Meteo, NASA) is fetched by each browser in both editions, so the
   the **30 Aug 2022** Sindh and Balochistan floods and **5 Sep 2025** Punjab floods
 - **Automatic mode**: automatic alerts (level and countdown can be changed) with **Send now** / **Cancel**, and
   automatic rescue dispatch with **Hold**; both can be switched off
+- **Where the flood goes next**: moving lines along river paths and "≈ N h" arrival labels; **people affected** line
+  (people in danger zones and under flood water, from NASA population data)
+- **NASA radar** layers (Sentinel-1 water through clouds, radar image), **snow cover**, **where people live**, **landslide hazard**
+- **SMS help line** box and **reports** from neighbours in the rescue queue; **no-answer checks**
 - **Manual alert**: places or a drawn zone, **Select places at Warning+** in one click, level, English and Urdu
   preview, SMS preview, and how many phones it will reach
 - **Who got the warning**: phones, warned, received, safe, need help, no answer yet, counted live
@@ -148,6 +194,8 @@ Live data (Open-Meteo, NASA) is fetched by each browser in both editions, so the
 - **I'm safe** / **I need help**; for help, a fresh GPS fix and a short form (number of people, injured, elderly or
   disabled, children, pregnant woman, water rising)
 - "Rescue team … is on the way — about N minutes" and "You are marked as rescued" messages from the control room
+- **Report people who need help** (neighbours, people without the app)
+- **Outbox**: with no connection, answers and reports are saved and sent automatically when the signal returns
 
 ## What is real and what is simulated
 
@@ -161,6 +209,10 @@ Live data (Open-Meteo, NASA) is fetched by each browser in both editions, so the
 | +25 crowd | **Simulated**, labelled SIM |
 | Heavy-rain scenario | **TEST**: simulated values, labelled on screen |
 | SMS to keypad phones | **Simulated** (logged by the server) unless an SMS gateway is set up |
+| SMS help line (incoming) | **Real** in the laptop edition with an SMS-gateway phone (`POST /sms/incoming`); **simulated** with the box in the control room |
+| Reports from neighbours, no-answer checks, outbox | **Real** |
+| Flood-wave arrival times | **Rough estimates** (fixed travel times between places), not a hydraulic model |
+| People affected | **Estimates** from NASA SEDAC population 2020 (capped at 1,000 per km², so cities are "at least") |
 | Automatic voice call to keypad phones | **Not built yet**: on the roadmap |
 | Safe points and rescue teams | **Demo placeholders**: to be replaced with PDMA shelters and real Rescue 1122 stations |
 | Arrival times | **Estimates** (straight-line distance at 25 km/h + 5 minutes) |
@@ -180,6 +232,13 @@ Live data (Open-Meteo, NASA) is fetched by each browser in both editions, so the
 | Automatic mode with the 2022 replay | EVACUATE to 10 places, then WARNING to 4 more, by itself; every dummy help request got its nearest team |
 | Cancel during the countdown (Bahrain) | No alert sent; Bahrain left alone for an hour |
 | Reset demo | Clears alerts and rescue list and ends a NASA replay |
+| Flood path: TEST heavy rain at Mingora | Charsadda ≈ 8 h (Warning), Nowshera ≈ 12 h (Warning), Attock ≈ 18 h and Mianwali ≈ 32 h (Watch); automatic EVACUATE to Mingora, then automatic WARNING to Charsadda and Nowshera with the reason "flood water from Mingora…" |
+| NASA replay 2022 with flood paths | Flood moving to Hyderabad (≈ 48 h) and Thatta (≈ 62 h); about 2.3 million people in danger zones, about 202,000 under the flood water NASA saw near the 58 places |
+| NASA radar (live) | 58 places checked; new water near Marala and Jhelum raised them to Watch only (radar alone cannot go higher) |
+| SMS help line | "MADAD Mehar 6 pani buzurg" (control-room box) and "madad Dadu 4 zakhmi bachay" (real webhook call) became help requests with place, people and needs, and got teams automatically |
+| Report someone else | A phone in Sukkur reported 7 injured people at Ghotki; Rescue 1122 Ghotki was sent automatically and the reporter's phone showed it |
+| No signal | A report made with the connection cut was saved ("1 message waiting") and delivered when the connection returned |
+| No answer | A keypad dummy phone that received the SMS but never replied was added as "check on them" and got a team |
 | NASA false alarms in the dry season | MODIS alone flagged water near Skardu and Mianwali in November; VIIRS did not, so the two-product rule now keeps them at Normal |
 | NASA tile server | Sometimes answers with an error; tiles are retried and failures are not cached |
 | Risk thresholds | **Not calibrated** against past floods |
@@ -195,6 +254,10 @@ Live data (Open-Meteo, NASA) is fetched by each browser in both editions, so the
 - **Flash floods from cloudbursts are hard to forecast.** GloFAS works on a grid of about 5 km and suits rivers
   better than small mountain streams; rain forecasts can miss a local cloudburst.
 - **The thresholds are a demo rule.** A real deployment would set them with PDMA and PMD using past floods.
+- **Radar "new water" can be harmless** (a barrage pond filling, flooded paddy fields), so radar alone only raises Watch.
+  Each radar pass covers part of the country, so some places have no recent radar view.
+- **Arrival times are rough.** They are fixed travel times between places, not a river model; dams and barrages change them.
+- **No connection, no new alert.** See "When there is no internet or no signal" above.
 - **The free relay (online edition)** has rate limits, and anyone with a room link can read that room's messages.
   Do not enter real personal details on the live link.
 - **GPS sharing needs HTTPS** (the online edition). On the local network, people pick their place instead.
@@ -214,10 +277,12 @@ added to `web/audio/`). No AI-generated images are used.
 - **Open-Meteo** Forecast API and Flood API: weather data by Open-Meteo.com (CC BY 4.0)
 - **GloFAS** river discharge: Copernicus Emergency Management Service (via Open-Meteo)
 - **NASA GIBS** (Global Imagery Browse Services, EOSDIS): MODIS and VIIRS flood products (LANCE), GPM IMERG
-  precipitation rate, SMAP L4 soil moisture, SEDAC Global Flood Hazard, VIIRS true colour; NASA colour keys
+  precipitation rate, SMAP L4 soil moisture, NASA JPL OPERA DSWx-S1 and RTC-S1 (from Copernicus Sentinel-1 radar),
+  SEDAC Gridded Population of the World v4 (2020), SEDAC flood and landslide hazard, VIIRS snow cover and true colour;
+  NASA colour keys
 - **NASA EONET** natural event tracker API
-- **Leaflet** 1.9.4 (map library) and **OpenStreetMap** tiles © OpenStreetMap contributors
-- **qrcodejs** 1.0.0 (QR code in the control room)
+- **Leaflet** 1.9.4 (map library, BSD-2, bundled in `web/vendor/`) and **OpenStreetMap** tiles © OpenStreetMap contributors
+- **qrcodejs** 1.0.0 (QR code in the control room, MIT, bundled in `web/vendor/`)
 - **Google Maps** directions links for routes (a plain link, no API)
 - **ntfy.sh** public relay (online edition only)
 - **Hugging Face Spaces** (free static hosting)
@@ -283,6 +348,11 @@ When the control room sends an alert, the local server POSTs `{"message": "...",
 auth. Gateway apps use slightly different request formats, so adjust `send_sms()` in `server.py` to match the app
 you choose. Only send to the numbers of people who agreed.
 
+**Incoming SMS (help line):** set the gateway app's "incoming message webhook" to `http://<laptop-IP>:8000/sms/incoming`.
+The server accepts JSON `{"from": "...", "message": "..."}` (also `sender`/`phoneNumber` and `text`/`body`, or a form)
+and passes it, with the number partly hidden, to every control room active in the last 12 hours (or only to
+`"room"` if set in the `sms` part of `config.json`).
+
 ## Other hosting
 
 - `Dockerfile`: for hosts that run containers (for example a Hugging Face PRO Docker Space). It reads the `PORT` variable.
@@ -300,7 +370,7 @@ khabardar-demo/
     dashboard.html          # control room
     phone.html              # phone / PC receiver
     js/config.js            # relay setting (server.py replaces it with the local relay)
-    js/villages.js          # 58 places, demo safe points and demo rescue teams
+    js/villages.js          # 58 places, flood types, river paths, demo safe points and demo rescue teams
     js/common.js            # alert texts, risk score, weather data, relay
     js/nasa.js              # NASA GIBS layers and pixel reading, NASA EONET events
     js/nasa-colormaps.js    # NASA colour keys (rain rate, soil moisture, flood classes)
@@ -309,13 +379,17 @@ khabardar-demo/
     js/rescue.js            # rescue queue, teams, CSV
     js/phone.js             # phone logic
     css/, audio/            # styles, optional voice recordings
+    vendor/                 # Leaflet 1.9.4 and qrcodejs 1.0.0 (bundled so the control room works without internet)
+    sw.js                   # keeps a copy of the app on the device so it opens offline
   Dockerfile, render.yaml, requirements.txt   # other hosting options
 ```
 
 ## Roadmap
 
 Native Android app that rings even when locked, automatic voice calls and SMS to keypad phones on every network,
-automatic mode running on a server around the clock, "all clear" messages when the danger passes, PDMA approval workflow, real shelter and Rescue 1122 station lists, Sentinel-1 radar flood mapping through cloud,
+automatic mode running on a server around the clock, "all clear" messages when the danger passes, PDMA approval workflow,
+cell broadcast through the PTA (reaches every phone without an app), phone-to-phone Bluetooth relay, satellite SMS,
+a hydraulic flood-routing model instead of fixed travel times, NISAR radar once its coverage of Pakistan is complete, real shelter and Rescue 1122 station lists, Sentinel-1 radar flood mapping through cloud,
 and an "Ask Khabardar" voice helper.
 
 ## Sources for the figures above

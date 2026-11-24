@@ -57,10 +57,33 @@
     <div class="small muted" id="nasaLine"></div>
   </div>
   <div class="card rescue-box" id="idleRescue" hidden></div>
+  <div class="small outbox" id="outboxNote" hidden></div>
+  <button id="reportBtn" class="big red" data-t="reportOpen">Report people who need help</button>
   <div class="row2">
     <button id="testSound" class="ghost" data-t="testSound">Test siren</button>
     <button id="changeBtn" class="ghost" data-t="change">Change settings</button>
   </div>
+</section>
+
+<!-- 2b. Report other people who need help (neighbours, people without the app) -->
+<section id="report" class="screen" hidden>
+  <div class="dtitle big-title" data-t="reportTitle">Report people who need help</div>
+  <p class="small muted" data-t="reportIntro">For neighbours or anyone without Khabardar. The control room will send a rescue team.</p>
+  <div class="card">
+    <div class="field"><label data-t="reportWhere">Where are they?</label><select id="rVillage"></select></div>
+    <label class="check" id="rGpsWrap" hidden><input type="checkbox" id="rGps" checked> <span data-t="reportHere">They are near me (use my location)</span></label>
+    <div class="field"><label data-t="reportPeople">How many people?</label>
+      <div class="opts" id="rPeople"><button data-n="1">1</button><button data-n="3">2–4</button><button data-n="7">5–9</button><button data-n="12">10+</button></div></div>
+    <div class="field"><label data-t="needsQ">Does anyone need special care?</label>
+      <div class="opts wrap" id="rNeeds">
+        <button data-k="injured" data-t="injured">Injured</button><button data-k="elderly" data-t="elderly">Elderly / disabled</button>
+        <button data-k="children" data-t="children">Children</button><button data-k="pregnant" data-t="pregnant">Pregnant woman</button>
+        <button data-k="water" data-t="water">Water is rising here</button></div></div>
+    <div class="field"><label data-t="reportNote">Landmark or names (optional)</label><input id="rNote" maxlength="80" autocomplete="off"></div>
+    <button class="big red" id="rSend" data-t="reportSend">Send report</button>
+    <p class="small" id="rDone" hidden></p>
+  </div>
+  <button class="ghost" id="rBack" data-t="back">Back</button>
 </section>
 
 <!-- 3. ALERT -->
@@ -106,6 +129,7 @@
     <button class="big red" id="sendDetails" data-t="sendDetails">Send details</button>
     <p class="small" id="detailsDone" hidden data-t="detailsSent">Details sent ✓</p>
   </div>
+  <button id="reportBtn2" class="ghost" data-t="reportOpen">Report people who need help</button>
   <button id="backBtn" class="ghost" data-t="back">Back</button>
 </section>
 

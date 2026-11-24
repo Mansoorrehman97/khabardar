@@ -119,6 +119,29 @@ def send_sms(alert):
         print(f"  [SMS] gateway error: {e}")
 
 
+def mask_number(num):
+    num = re.sub(r"[^\d+]", "", str(num or ""))
+    return num[:5] + "*****" + num[-2:] if len(num) > 7 else (num or "unknown number")
+
+
+def incoming_sms(sender, text):
+    """An SMS reached the gateway phone (any phone can send it, even a keypad phone without internet).
+    It is passed to every control room that was active in the last 12 hours; the control room reads it
+    (e.g. "MADAD Dadu 5 zakhmi") and adds a help request to the rescue queue."""
+    text = str(text or "").strip()[:300]
+    if not text:
+        return 0
+    body = json.dumps({"type": "sms_in", "from": mask_number(sender), "text": text, "t": time.time()}, ensure_ascii=False)
+    room = CONFIG.get("sms", {}).get("room")
+    with lock:
+        cutoff = time.time() - KEEP_SECONDS
+        topics = [room and "khabardar-" + room] if room else [t for t, h in history.items() if h and h[-1]["time"] >= cutoff and t.startswith("khabardar-")]
+    for topic in topics:
+        publish(topic, body)
+    print(f"  [SMS in] {mask_number(sender)}: {text[:80]}  -> {len(topics)} control room(s)")
+    return len(topics)
+
+
 # ----------------------------------------------------------------------------------------------
 # Helpers
 # ----------------------------------------------------------------------------------------------
@@ -248,6 +271,20 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         parts = urllib.parse.urlparse(self.path).path.strip("/").split("/")
+        if parts == ["sms", "incoming"]:
+            # webhook for an Android SMS-gateway app: JSON {"from": "...", "message": "..."} or a form with the same fields
+            n = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(n).decode("utf-8", "replace") if 0 < n <= MAX_BODY else ""
+            try:
+                data = json.loads(raw)
+                data = data.get("payload", data) if isinstance(data, dict) else {}
+            except ValueError:
+                data = {k: v[0] for k, v in urllib.parse.parse_qs(raw).items()}
+            sender = data.get("from") or data.get("sender") or data.get("phoneNumber") or data.get("phone") or ""
+            text = data.get("message") or data.get("text") or data.get("body") or ""
+            rooms = incoming_sms(sender, text)
+            self.send_bytes(json.dumps({"ok": bool(text), "rooms": rooms}).encode(), CTYPES[".json"])
+            return
         if len(parts) == 2 and parts[0] == "relay" and TOPIC_RE.match(parts[1]):
             n = int(self.headers.get("Content-Length") or 0)
             if n <= 0 or n > MAX_BODY:

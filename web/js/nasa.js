@@ -16,6 +16,12 @@ const NASA = (() => {
   const SOIL = { id: "SMAP_L4_Analyzed_Root_Zone_Soil_Moisture", tms: "GoogleMapsCompatible_Level6", maxZ: 6 };
   const HAZARD = { id: "NDH_Flood_Hazard_Frequency_Distribution_1985-2003", tms: "GoogleMapsCompatible_Level7", maxZ: 7 };
   const TRUECOLOR = { id: "VIIRS_NOAA20_CorrectedReflectance_TrueColor", tms: "GoogleMapsCompatible_Level9", maxZ: 9 };
+  const RADAR_WATER = { id: "OPERA_L3_Dynamic_Surface_Water_Extent-Sentinel-1", tms: "GoogleMapsCompatible_Level12", maxZ: 12 };
+  const RADAR_IMAGE = { id: "OPERA_L2_Radiometric_Terrain_Corrected_SAR_Sentinel-1", tms: "GoogleMapsCompatible_Level12", maxZ: 12 };
+  const POP = { id: "GPW_Population_Density_2020", tms: "GoogleMapsCompatible_Level7", maxZ: 7 };
+  const SNOW = { id: "VIIRS_NOAA20_NDSI_Snow_Cover", tms: "GoogleMapsCompatible_Level8", maxZ: 8 };
+  const LANDSLIDE = { id: "NDH_Landslide_Hazard_Distribution_2000", tms: "GoogleMapsCompatible_Level7", maxZ: 7 };
+  const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
   const REPLAYS = [
     { date: "2022-08-30", label: "30 Aug 2022 — Sindh & Balochistan floods" },
     { date: "2025-09-05", label: "5 Sep 2025 — Punjab floods (Chenab, Ravi, Sutlej)" }
@@ -82,7 +88,8 @@ const NASA = (() => {
     if (Object.values(loaded).every((d) => !d)) return null;
     const out = [];
     for (const [k, x, y] of pts) {
-      const d = loaded[k]; if (!d) continue;
+      const d = loaded[k];
+      if (!d) { out.push([0, 0, 0, 0]); continue; }   // keep positions aligned between dates
       const i = (y * d.width + x) * 4;
       out.push([d.data[i], d.data[i + 1], d.data[i + 2], d.data[i + 3]]);
     }
@@ -96,7 +103,8 @@ const NASA = (() => {
       const d = (p[0] - e[0]) ** 2 + (p[1] - e[1]) ** 2 + (p[2] - e[2]) ** 2;
       if (d < bd) { bd = d; best = e; if (d === 0) break; }
     }
-    return best && bd <= 300 ? (best[3] + best[4]) / 2 : null;
+    if (!best || bd > 300) return null;
+    return best[4] > best[3] * 10 ? best[3] : (best[3] + best[4]) / 2;   // open-ended top class ("1000 and more"): use its lower edge
   }
 
   function floodStats(fp) {
@@ -136,6 +144,14 @@ const NASA = (() => {
           nasa_flood_src: views.length === 2 ? "MODIS + VIIRS agree" : pickStat === w ? "VIIRS" : unconfirmed ? "MODIS only, unconfirmed" : "MODIS",
           nasa_modis_frac: m ? +m.frac.toFixed(4) : null, nasa_viirs_frac: w ? +w.frac.toFixed(4) : null });
       }
+      const pp = await pixelsAround(POP, null, 7, v.lat, v.lon, 6000);   // people per km² (SEDAC GPW 2020)
+      if (pp) {
+        const vals = pp.map((p) => decode(p, NASA_CM.pop)).filter((x) => x != null);
+        if (vals.length) {
+          s.pop_density = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+          s.pop_capped = vals.filter((x) => x >= 1000).length / vals.length > 0.3;   // NASA's map stops at 1000/km²: cities are "at least"
+        }
+      }
       if (latest) {
         const rp = await pixelsAround(RAIN, "default", 5, v.lat, v.lon, 9000);
         if (rp) {
@@ -158,7 +174,75 @@ const NASA = (() => {
     return out;
   }
 
+  /* NASA OPERA radar water (from Sentinel-1 radar, which sees through clouds and at night).
+     Each pass covers part of Pakistan, so the newest of the last 3 days is used, and compared with the same 3 days
+     6 weeks earlier: water that is there now but was not there then = new water. */
+  function radarClass(p) {
+    if (p[3] < 128) return null;
+    if (near(p, NASA_CM.radar.water, 20) || near(p, NASA_CM.radar.vegwater, 20)) return "water";
+    if (near(p, NASA_CM.radar.dry, 20)) return "dry";
+    return null; // masked (steep terrain / shadow) or no data
+  }
+  async function radarComposite(v, dates) {
+    const sets = await Promise.all(dates.map((d) => pixelsAround(RADAR_WATER, d, 8, v.lat, v.lon, 6000)));
+    const n = (sets.find((x) => x) || []).length;
+    if (!n) return null;
+    const out = new Array(n).fill(null);
+    for (const set of sets) {
+      if (!set) continue;
+      for (let i = 0; i < n; i++) if (out[i] == null) out[i] = radarClass(set[i]);
+    }
+    return out;
+  }
+  async function sampleRadar(vs) {
+    const recentDates = [daysAgo(1), daysAgo(2), daysAgo(3)], baseDates = [daysAgo(43), daysAgo(44), daysAgo(45)];
+    const out = {};
+    await Promise.all(vs.map(async (v) => {
+      const [now, base] = await Promise.all([radarComposite(v, recentDates), radarComposite(v, baseDates)]);
+      if (!now) return;
+      const seen = now.filter((x) => x).length, water = now.filter((x) => x === "water").length;
+      const s = { radar_ok: seen > 0, radar_seen_frac: +(seen / now.length).toFixed(2), radar_water_frac: seen ? +(water / seen).toFixed(3) : null };
+      if (base) {
+        let both = 0, fresh = 0;
+        for (let i = 0; i < now.length; i++) {
+          if (!now[i] || !base[i]) continue;
+          both++;
+          if (now[i] === "water" && base[i] === "dry") fresh++;
+        }
+        if (both >= 30) Object.assign(s, { radar_new_px: fresh, radar_new_frac: +(fresh / both).toFixed(3), radar_compared_frac: +(both / now.length).toFixed(2) });
+      }
+      out[v.id] = s;
+    }));
+    return out;
+  }
+
   // ------------------------------------------------------------ map layers (Leaflet)
+  /* Radar water drawn on a canvas so only water shows (radar "not water" pixels are white and would hide the map). */
+  function radarWaterLayer() {
+    const Layer = L.GridLayer.extend({
+      createTile(coords, done) {
+        const c = document.createElement("canvas"); c.width = c.height = 256;
+        tile(url(RADAR_WATER, daysAgo(1), coords.z, coords.y, coords.x)).then(async (d) => {
+          if (!d) d = await tile(url(RADAR_WATER, daysAgo(2), coords.z, coords.y, coords.x));
+          if (d) {
+            const g = c.getContext("2d"), img = g.createImageData(256, 256);
+            for (let i = 0; i < d.data.length; i += 4) {
+              const p = [d.data[i], d.data[i + 1], d.data[i + 2], d.data[i + 3]];
+              if (radarClass(p) === "water") { img.data[i] = 0; img.data[i + 1] = 200; img.data[i + 2] = 255; img.data[i + 3] = 220; }
+            }
+            g.putImageData(img, 0, 0);
+          }
+          done(null, c);
+        });
+        return c;
+      }
+    });
+    return new Layer({ maxNativeZoom: 10, maxZoom: 18, attribution: ATTR + " · OPERA DSWx-S1 (Sentinel-1 radar)", zIndex: 345 });
+  }
+  const radarImageLayer = () => tileLayer(RADAR_IMAGE, daysAgo(1), { opacity: 0.8, zIndex: 300, maxNativeZoom: 10 });
+  const popLayer = () => tileLayer(POP, null, { opacity: 0.55, zIndex: 310 });
+  const snowLayer = () => tileLayer(SNOW, "default", { opacity: 0.6, zIndex: 315 });
+  const landslideLayer = () => tileLayer(LANDSLIDE, null, { opacity: 0.6, zIndex: 318 });
   /* Flood layer drawn on a canvas so only flood water shows (NASA's grey "no data / cloud" pixels are hidden). */
   function floodLayer(date) {
     const time = !date || date === "latest" ? "default" : date;
@@ -224,5 +308,6 @@ const NASA = (() => {
   /* Forget cached "latest" tiles so the next check downloads NASA's newest images. */
   function clearLatest() { for (const k of [...tiles.keys()]) if (k.includes("/default/default/")) tiles.delete(k); }
 
-  return { REPLAYS, sampleVillages, floodLayer, rainLayer, soilLayer, hazardLayer, trueColorLayer, events, clearLatest };
+  return { REPLAYS, sampleVillages, sampleRadar, floodLayer, rainLayer, soilLayer, hazardLayer, trueColorLayer,
+           radarWaterLayer, radarImageLayer, popLayer, snowLayer, landslideLayer, events, clearLatest };
 })();

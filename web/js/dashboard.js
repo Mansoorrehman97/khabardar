@@ -10,7 +10,6 @@ const S = {
 const LEVEL_COLOR = { normal: "#2bb673", watch: "#f5c542", warning: "#f28c28", evacuate: "#e5383b" };
 const STATUS_COLOR = { sent: "#c9d6e5", delivered: "#7fc8ff", played: "#f5c542", safe: "#2bb673", help: "#e5383b" };
 const RANK = { sent: 0, delivered: 1, played: 2, safe: 3, help: 3 };
-const DANGER_KM = { watch: 3, warning: 6, evacuate: 10 };
 const $ = (id) => document.getElementById(id);
 const esc = escHtml;
 const now = () => Date.now() / 1000;
@@ -20,7 +19,8 @@ function statusText(r, p) {
   if (r.status === "delivered") return p && p.device === "keypad" ? "SMS received" : "Received";
   return { sent: "Sending…", played: "Siren played", safe: "SAFE", help: "NEEDS HELP" }[r.status] || r.status;
 }
-function phoneTag(p) { return p.dummy ? '<span class="tag dummy">DUMMY</span>' : p.sim ? '<span class="tag sim">SIM</span>' : '<span class="tag real">REAL</span>'; }
+function phoneTag(p) { return p.dummy ? '<span class="tag dummy">DUMMY</span>' : p.sim ? '<span class="tag sim">SIM</span>' : p.sms ? '<span class="tag sms">SMS</span>' : p.report ? '<span class="src">REPORTED</span>' : '<span class="tag real">REAL</span>'; }
+const isRealPhone = (p) => p && !p.dummy && !p.sim && !p.sms && !p.report;
 function phoneName(p, id) { return (p && p.name) || "Phone " + String(id || "").slice(0, 4); }
 
 // ---------------------------------------------------------------- room + join link
@@ -61,20 +61,23 @@ $("newRoomBtn").addEventListener("click", (e) => confirmClick(e.currentTarget, (
 // ---------------------------------------------------------------- map + layers
 const map = L.map("map", { zoomControl: true, preferCanvas: false }).setView([30.2, 69.5], 5);
 const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap contributors" }).addTo(map);
-["danger", "alert", "villages", "safe", "teams", "events", "responders", "rescue"].forEach((k) => (S.layers[k] = L.layerGroup()));
+["danger", "flows", "alert", "villages", "safe", "teams", "events", "responders", "rescue"].forEach((k) => (S.layers[k] = L.layerGroup()));
+const NASA_LAYERS = ["flood", "rain", "soil", "hazard", "truecolor", "radar", "radarimg", "pop", "snow", "landslide"];
 map.createPane("dangerPane").style.zIndex = 380;
 
 function nasaLayer(name) {
   if (!S.nasaLayers[name]) {
     const d = S.replay || "latest";
-    S.nasaLayers[name] = { flood: () => NASA.floodLayer(d), rain: () => NASA.rainLayer(d), soil: () => NASA.soilLayer(), hazard: () => NASA.hazardLayer(), truecolor: () => NASA.trueColorLayer(d) }[name]();
+    S.nasaLayers[name] = { flood: () => NASA.floodLayer(d), rain: () => NASA.rainLayer(d), soil: () => NASA.soilLayer(), hazard: () => NASA.hazardLayer(),
+      truecolor: () => NASA.trueColorLayer(d), radar: () => NASA.radarWaterLayer(), radarimg: () => NASA.radarImageLayer(), pop: () => NASA.popLayer(),
+      snow: () => NASA.snowLayer(), landslide: () => NASA.landslideLayer() }[name]();
   }
   return S.nasaLayers[name];
 }
 function applyLayers() {
   document.querySelectorAll("#layersBody input[data-layer]").forEach((cb) => {
     const name = cb.dataset.layer;
-    const layer = ["flood", "rain", "soil", "hazard", "truecolor"].includes(name) ? nasaLayer(name) : S.layers[name];
+    const layer = NASA_LAYERS.includes(name) ? nasaLayer(name) : S.layers[name];
     const want = cb.checked && (!["safe", "teams"].includes(name) || map.getZoom() >= 8); // pins only when zoomed in
     if (want && !map.hasLayer(layer)) layer.addTo(map);
     if (!want && map.hasLayer(layer)) map.removeLayer(layer);
@@ -167,15 +170,28 @@ function popupHtml(v) {
   const real = ph.filter((p) => !p.dummy && !p.sim).length;
   const num = (x, unit = "") => (x == null ? "–" : x + unit);
   const sat = d.nasa_ok ? `${((d.nasa_flood_frac || 0) * 100).toFixed(1)}% <span style="color:#777">(${esc(d.nasa_flood_src || "")}${d.nasa_cloud_frac > 0.3 ? ", cloud " + Math.round(d.nasa_cloud_frac * 100) + "%" : ""})</span>` : "–";
-  return `<b>${esc(v.name)}</b> · ${esc(v.district)}, ${esc(PROVINCE_NAMES[v.province])}<br><span style="color:#666">${esc(v.river)}</span>
+  const radar = d.radar_ok ? `${d.radar_water_frac != null ? Math.round(d.radar_water_frac * 100) + "% water" : "–"}${d.radar_new_frac != null ? `, new ${(d.radar_new_frac * 100).toFixed(1)}%` : ""} <span style="color:#777">(seen ${Math.round((d.radar_seen_frac || 0) * 100)}%)</span>` : "–";
+  const P = d.parts || {};
+  const partsTxt = Object.entries(P).filter(([, x]) => x > 0).sort((a, b) => b[1] - a[1]).map(([k, x]) => `${DRIVER_NAMES[k]} ${x}`).join(" · ") || "all 0";
+  return `<b>${esc(v.name)}</b> · ${esc(v.district)}, ${esc(PROVINCE_NAMES[v.province])}<br><span style="color:#666">${esc(v.river)}</span><br>
+    <span style="color:#666">Flood types here: ${v.hz.map((h) => HAZARD_NAMES[h]).join(", ")}</span>
     <div class="pop-grid">
       ${d.replay ? "" : `<span>Rain next 24 h</span><b>${num(d.rain_24h, " mm")}</b><span>Heaviest hour</span><b>${num(d.rain_max_1h, " mm")}</b>
       <span>River vs normal (GloFAS)</span><b>${d.river_ratio != null ? d.river_ratio + "×" : "n/a"}</b>
+      ${d.river_peak_day ? `<span>River peak in 7 days</span><b>${d.river_peak7_ratio}× on ${esc(d.river_peak_day_label)}</b>` : ""}
+      ${v.up ? `<span>Rain in hills upstream</span><b>${num(d.up_rain_24h, " mm")} <span style="color:#777">(${esc(v.up[2])})</span></b>` : ""}
+      ${v.heat ? `<span>Hottest day (3 days)</span><b>${num(d.tmax_3d, " °C")} <span style="color:#777">(melt risk above ${v.heat} °C)</span></b>` : ""}
+      ${v.hz.includes("coastal") ? `<span>Strongest wind gust</span><b>${num(d.gust_3d, " km/h")}</b>` : ""}
       <span>NASA rain (latest)</span><b>${num(d.nasa_rain_now, " mm/h")}${d.nasa_snow ? " (snow nearby)" : ""}</b>
-      <span>NASA soil wetness</span><b>${d.nasa_soil != null ? d.nasa_soil.toFixed(2) + " m³/m³" + (d.wet_factor > 1 ? ` (rain ×${d.wet_factor})` : "") : "–"}</b>`}
+      <span>NASA soil wetness</span><b>${d.nasa_soil != null ? d.nasa_soil.toFixed(2) + " m³/m³" + (d.wet_factor > 1 ? ` (rain ×${d.wet_factor})` : "") : "–"}</b>
+      <span>NASA radar ≤ 6 km</span><b>${radar}</b>`}
       <span>NASA flood water ≤ 6 km</span><b>${sat}</b>
+      ${d.upstream_score ? `<span>Flood from upstream</span><b>from ${esc(VMAP[d.upstream_from].name)} in ≈ ${d.upstream_hours} h</b>` : ""}
+      <span>People within 6 km</span><b>${d.pop_capped ? "at least " : ""}${fmtPeople(d.pop_6km)}${d.people_water ? ` · under water ≈ ${fmtPeople(d.people_water)}` : ""}</b>
     </div>
-    Risk: <b>${d.score ?? "–"}</b> <span class="lvl ${d.level || "normal"}">${(d.level || "normal").toUpperCase()}</span> <span style="color:#666">driven by ${d.driver || "–"}</span>${d.test ? '<span class="test">TEST</span>' : ""}${d.replay ? '<span class="rpl">REPLAY</span>' : ""}<br>
+    <span style="color:#666">Scores: ${esc(partsTxt)}</span><br>
+    Risk: <b>${d.score ?? "–"}</b> <span class="lvl ${d.level || "normal"}">${(d.level || "normal").toUpperCase()}</span> <span style="color:#666">by ${esc(DRIVER_NAMES[d.driver] || "–")}</span>${d.test ? '<span class="test">TEST</span>' : ""}${d.replay ? '<span class="rpl">REPLAY</span>' : ""}<br>
+    ${d.score ? `<i style="color:#444">${esc(reasonText(reasonOf(d), "en"))}</i><br>` : ""}
     Phones watching: <b>${ph.length}</b> (${real} real)<br>
     <button class="mini" onclick="toggleSelect('${v.id}')">${S.selected.has(v.id) ? "Remove from alert" : "Add to alert"}</button>
     ${d.replay ? "" : `<button class="mini" onclick="toggleScenario('${v.id}', ${!d.test})">${d.test ? "Turn TEST off" : "Simulate heavy rain (TEST)"}</button>`}`;
@@ -234,7 +250,7 @@ function renderPreview() {
   const id = [...S.selected][0];
   if (!id) { $("preview").innerHTML = '<span class="muted">Message preview appears here.</span>'; return; }
   const level = $("level").value, t = buildTexts(level, VMAP[id]);
-  const n = Object.values(S.phones).filter((p) => phoneMatches(p, { villages: [...S.selected], center: S.mode === "zone" ? S.zoneCenter : null, radius_km: S.radiusKm })).length;
+  const n = Object.values(S.phones).filter((p) => !p.sms && !p.report && phoneMatches(p, { villages: [...S.selected], center: S.mode === "zone" ? S.zoneCenter : null, radius_km: S.radiusKm })).length;
   $("preview").innerHTML = `<b>${esc(t.en.title)}</b> — ${esc(t.en.body)}<div class="ur"><b>${esc(t.ur.title)}</b> — ${esc(t.ur.body)}</div>
     <div class="muted small">Keypad phones get an SMS: “${esc(smsText(level, VMAP[id], $("isTest").checked))}”</div>
     <div class="muted small">Will reach <b>${n}</b> phone(s) now · each in its chosen language (Urdu or English) with a siren and voice.</div>`;
@@ -382,7 +398,7 @@ function handle(m, local) {
     if (t > S.resetAt) {
       S.resetAt = t; S.responses = {}; S.alerts = []; S.currentAlert = null; S.scenario = {};
       S.pendingAuto = null; S.autoCancelled = {}; renderPending();
-      for (const id of Object.keys(S.phones)) if (S.phones[id].sim) delete S.phones[id];
+      for (const id of Object.keys(S.phones)) if (S.phones[id].sim || S.phones[id].sms || S.phones[id].report) delete S.phones[id];
       $("log").innerHTML = ""; $("sendResult").textContent = ""; drawAlertArea(null);
       if (S.replay) { $("nasaDate").value = "latest"; setReplay(null); }   // a reset also ends a NASA replay
       recompute();
@@ -401,6 +417,7 @@ function handle(m, local) {
     S.alerts.push(m); S.currentAlert = m;
     let n = 0, sms = 0;
     for (const p of Object.values(S.phones)) {
+      if (p.sms || p.report) continue;
       const vid = phoneMatches(p, m);
       if (!vid) continue;
       n++; if (p.device === "keypad") sms++;
@@ -434,6 +451,10 @@ function handle(m, local) {
     if (r) { r.details = { people: +m.people || 1, injured: !!m.injured, elderly: !!m.elderly, children: !!m.children, pregnant: !!m.pregnant, water: !!m.water };
       if (m.lat != null) { r.lat = m.lat; r.lon = m.lon; r.gps = true; }
       addLog(`${phoneName(S.phones[m.pid], m.pid)} sent help details: ${r.details.people} people${r.details.injured ? ", injured" : ""}${r.details.water ? ", water rising" : ""}`); }
+  } else if (m.type === "sms_in") {
+    handleSms(m, t);
+  } else if (m.type === "report") {
+    handleReport(m, t);
   } else if (m.type === "rescue") {
     if (!local) Rescue.applyRemote(m);
   } else if (m.type === "scenario") {
@@ -442,6 +463,93 @@ function handle(m, local) {
   }
   scheduleRender();
 }
+/* ---- Help from people WITHOUT the app ---------------------------------------------------------------------------
+   1. SMS help line: "MADAD Dadu 5 zakhmi" (help, place, people, needs) from any phone, even a keypad phone with no internet.
+   2. Reports: someone with the app reports other people who need help. */
+function parseSms(text) {
+  const raw = String(text || "");
+  const s = " " + raw.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ") + " ";
+  const tok = s.trim().split(" ");
+  const has = (...ws) => ws.some((w) => s.includes(" " + w + " "));
+  const out = { status: null, village: null, people: null, injured: false, water: false, elderly: false, children: false, pregnant: false };
+  if (has("madad", "help", "bachao", "bachaao", "sos", "مدد", "بچاؤ", "بچاو") || tok[0] === "2") out.status = "help";
+  else if (has("mehfooz", "mahfooz", "mehfuz", "safe", "theek", "thik", "محفوظ", "ٹھیک") || tok[0] === "1") out.status = "safe";
+  let best = null, bl = 0;
+  for (const v of VILLAGES) {
+    const names = [v.id, v.name.toLowerCase().replace(/\(.*?\)/g, "").trim(), v.district.toLowerCase(), (v.name_ur || "").replace(/\(.*?\)/g, "").trim()].filter((x) => x && x.length > 2);
+    for (const n of names) if (s.includes(" " + n + " ") && n.length > bl) { best = v.id; bl = n.length; }
+  }
+  out.village = best;
+  const nums = tok.filter((x) => /^\d{1,3}$/.test(x)).map(Number);
+  if (nums.length && (tok[0] === "1" || tok[0] === "2")) nums.shift();
+  if (nums.length) out.people = Math.min(200, Math.max(1, nums[0]));
+  out.injured = has("zakhmi", "zakhmee", "injured", "زخمی");
+  out.water = has("pani", "paani", "water", "doob", "پانی");
+  out.elderly = has("buzurg", "elderly", "budha", "boorha", "بزرگ", "mazoor", "معذور");
+  out.children = has("bachay", "bachey", "bache", "children", "bachon", "بچے");
+  out.pregnant = has("hamla", "hamila", "pregnant", "حاملہ");
+  return out;
+}
+function addOutsideRequest({ key, pid, name, village, lat, lon, details, source, note, notify, t, flag }) {
+  S.phones[pid] = Object.assign(S.phones[pid] || {}, { id: pid, name, villages: village ? [village] : [], lang: "ur", device: source === "sms" ? "keypad" : "report", joined: t, [flag]: true });
+  const r = S.responses[key] || (S.responses[key] = { alert_id: key.split("|")[0], phone_id: pid, status: "help", t_sent: t, t_help: t, rescue: { status: "waiting" } });
+  Object.assign(r, { village_id: village, details, source, note, notify, lat: lat ?? r.lat ?? null, lon: lon ?? r.lon ?? null, gps: lat != null });
+  return r;
+}
+function handleSms(m, t) {
+  const p = parseSms(m.text);
+  const pid = "sms_" + hashStr(m.from || m.text).toString(36);
+  const who = "SMS " + (m.from || "unknown number");
+  if (p.status === "safe") {   // a keypad phone replying "1" to an alert SMS
+    const open = Object.entries(S.responses).filter(([, r]) => r.phone_id === pid);
+    open.forEach(([, r]) => { r.status = "safe"; });
+    addLog(`SMS from ${m.from || "unknown"}: “${m.text}” → marked SAFE`);
+    return;
+  }
+  const key = "sms:" + hashStr(pid + Math.floor(t / 600)) + "|" + pid;   // one request per number per 10 minutes
+  addOutsideRequest({ key, pid, name: who, village: p.village, details: { people: p.people || 1, injured: p.injured, water: p.water, elderly: p.elderly, children: p.children, pregnant: p.pregnant },
+    source: "sms", note: m.text, t, flag: "sms" });
+  addLog(`SMS HELP from ${m.from || "unknown"}: “${m.text}” → ${p.village ? VMAP[p.village].name : "place not understood"}, ${p.people || 1} people${p.injured ? ", injured" : ""}${p.water ? ", water rising" : ""}`);
+  toast(`Help request by SMS${p.village ? " from " + VMAP[p.village].name : ""} added to the rescue queue`);
+}
+function handleReport(m, t) {
+  if (!m.rid || !VMAP[m.village]) return;
+  const reporter = S.phones[m.pid];
+  const key = "report:" + m.rid + "|rep_" + m.rid;
+  addOutsideRequest({ key, pid: "rep_" + m.rid, name: `Reported by ${(reporter && reporter.name) || m.name || "a phone"}`, village: m.village, lat: m.lat, lon: m.lon,
+    details: { people: +m.people || 1, injured: !!m.injured, water: !!m.water, elderly: !!m.elderly, children: !!m.children, pregnant: !!m.pregnant },
+    source: "report", note: m.note, notify: m.pid, t, flag: "report" });
+  addLog(`REPORT: ${(reporter && reporter.name) || "a phone"} reports ${+m.people || 1} people needing help in ${VMAP[m.village].name}${m.note ? ` — “${m.note}”` : ""}`);
+}
+$("smsSend").addEventListener("click", async () => {
+  const text = $("smsText").value.trim();
+  if (!text) { toast("Type an SMS first, e.g. MADAD Dadu 5 zakhmi"); return; }
+  const num = $("smsFrom").value.replace(/[^\d+]/g, "");
+  const masked = num.length > 6 ? num.slice(0, 5) + "*****" + num.slice(-2) : num || "unknown number";
+  const ok = await publish(S.room, { type: "sms_in", from: masked, text });
+  if (ok) { $("smsText").value = ""; } else toast("Could not reach the relay");
+});
+
+/* People who were warned but did not answer within a few minutes, in a place at Warning or Evacuate:
+   they may be asleep, without battery, or trapped — the rescue list gets a "check on them" entry. */
+const NO_ANSWER_MIN = 2;   // demo value; a real deployment might wait 15–30 minutes
+function checkNoAnswer() {
+  const t = now();
+  let changed = false;
+  for (const r of Object.values(S.responses)) {
+    if (r.welfare || RANK[r.status] >= 3 || r.source) continue;
+    const a = S.alerts.find((x) => x.id === r.alert_id);
+    if (!a || !["warning", "evacuate"].includes(a.level) || t - (a.t || t) > 6 * 3600) continue;
+    const p = S.phones[r.phone_id] || {};
+    if (p.family || t - (r.t_sent || t) < NO_ANSWER_MIN * 60) continue;
+    r.welfare = true; r.t_help = t; r.details = { people: 1, noanswer: true, level: a.level }; r.rescue = r.rescue || { status: "waiting" };
+    addLog(`NO ANSWER: ${phoneName(p, r.phone_id)} (${VMAP[r.village_id].name}) has not replied ${NO_ANSWER_MIN} min after the ${a.level} alert — added to the rescue list for a check`);
+    changed = true;
+  }
+  if (changed) scheduleRender();
+}
+setInterval(checkNoAnswer, 5000);
+
 function upsertPhone(m) {
   S.phones[m.pid] = Object.assign(S.phones[m.pid] || {}, { id: m.pid, name: m.name, villages: (m.villages || []).filter((v) => VMAP[v]), lang: m.lang,
     lat: m.lat, lon: m.lon, joined: m.t, device: "smart" });
@@ -458,8 +566,8 @@ function scheduleRender() {
 }
 function currentResponses() { return S.currentAlert ? Object.values(S.responses).filter((r) => r.alert_id === S.currentAlert.id) : []; }
 function renderAll() {
-  const rs = currentResponses(), all = Object.values(S.phones);
-  const real = all.filter((p) => !p.dummy && !p.sim).length, dummy = all.filter((p) => p.dummy).length, sim = all.filter((p) => p.sim).length;
+  const rs = currentResponses(), all = Object.values(S.phones).filter((p) => !p.sms && !p.report);
+  const real = all.filter(isRealPhone).length, dummy = all.filter((p) => p.dummy).length, sim = all.filter((p) => p.sim).length;
   $("cPhones").textContent = all.length;
   $("cPhonesL").textContent = `Phones (${real} real)`;
   $("cPhones").title = `${real} real · ${dummy} dummy · ${sim} simulated`;
@@ -474,7 +582,7 @@ function renderAll() {
 }
 function sortedPhones() {
   const k = (p) => (p.dummy ? 2 : p.sim ? 1 : 0);
-  return Object.values(S.phones).sort((a, b) => k(a) - k(b) || (b.joined || 0) - (a.joined || 0) || String(a.name).localeCompare(String(b.name)));
+  return Object.values(S.phones).filter((p) => !p.sms && !p.report).sort((a, b) => k(a) - k(b) || (b.joined || 0) - (a.joined || 0) || String(a.name).localeCompare(String(b.name)));
 }
 function renderPhones(rs) {
   if (S.tab !== "phones") return;
@@ -572,11 +680,61 @@ async function refreshLive(force) {
   recompute();
   const flooded = res ? VILLAGES.filter((v) => (res[v.id] || {}).nasa_flood_frac >= 0.01 && res[v.id].nasa_flood_px >= 3) : [];
   if (S.nasaStatus === "ok") addLog(`NASA ${S.replay ? "replay " + S.replay : "satellite data"} checked for ${VILLAGES.length} places — flood water seen near ${flooded.length}${flooded.length ? ": " + flooded.slice(0, 8).map((v) => v.name).join(", ") + (flooded.length > 8 ? "…" : "") : ""}`);
+  if (!S.replay) {   // radar takes longer (several days of passes): add it when ready
+    S.radarStatus = "loading"; renderBadges();
+    const rad = await NASA.sampleRadar(VILLAGES).catch(() => null);
+    if (S.replay) return;
+    S.radar = rad; S.radarStatus = rad && Object.keys(rad).length ? "ok" : "bad";
+    recompute();
+    const fresh = rad ? VILLAGES.filter((v) => (rad[v.id] || {}).radar_new_px >= 4 && rad[v.id].radar_new_frac >= 0.03) : [];
+    if (S.radarStatus === "ok") addLog(`NASA radar (Sentinel-1, last 3 days vs 6 weeks ago) checked ${Object.keys(rad).length} places — new water near ${fresh.length}${fresh.length ? ": " + fresh.map((v) => v.name).join(", ") : ""}`);
+  }
 }
 function recompute() {
-  S.live = liveView({ wx: S.wx, nasa: S.nasa, scenario: S.scenario, replay: S.replay });
-  renderBadges(); renderRiskTable(); drawVillages(); drawDanger(); renderPreview();
+  S.live = liveView({ wx: S.wx, nasa: S.nasa, radar: S.replay ? null : S.radar, scenario: S.scenario, replay: S.replay });
+  renderBadges(); renderRiskTable(); drawVillages(); drawDanger(); drawFlows(); renderImpact(); renderPreview();
   autoCheck();
+}
+/* Where the flood goes next: animated lines along the river paths from each place in danger, with arrival times. */
+function drawFlows() {
+  S.layers.flows.clearLayers();
+  if (!S.live) return;
+  // places reached from each source; every river link between two of them is drawn
+  const reached = {};
+  for (const f of S.live.flows) (reached[f.from] = reached[f.from] || new Set([f.from])).add(f.to);
+  const edges = new Map();
+  for (const set of Object.values(reached)) {
+    for (const [a, b, , river] of RIVER_LINKS) {
+      if (!set.has(a) || !set.has(b)) continue;
+      const lvl = (S.live.villages[b] || {}).upstream_score >= 55 ? "warning" : "watch";
+      const k = a + ">" + b;
+      if (!edges.has(k) || lvl === "warning") edges.set(k, { a, b, river, lvl });
+    }
+  }
+  for (const { a, b, river, lvl } of edges.values()) {
+    const A = VMAP[a], B = VMAP[b];
+    L.polyline([[A.lat, A.lon], [B.lat, B.lon]], { color: LEVEL_COLOR[lvl], weight: 4, opacity: 0.9, className: "flowline" })
+      .bindTooltip(`${river}: flood water moving from ${A.name} towards ${B.name}`).addTo(S.layers.flows);
+  }
+  // arrival-time labels: the soonest arrival at each place
+  for (const [id, d] of Object.entries(S.live.villages)) {
+    if (!d.upstream_score) continue;
+    const v = VMAP[id], lvl = d.upstream_score >= 55 ? "warning" : "watch";
+    const icon = L.divIcon({ className: "", html: `<div class="eta ${lvl}">≈ ${d.upstream_hours} h</div>`, iconSize: [46, 16], iconAnchor: [-8, 22] });
+    L.marker([v.lat, v.lon], { icon }).bindTooltip(`Flood water from ${VMAP[d.upstream_from].name} expected at ${v.name} in about ${d.upstream_hours} hours (rough estimate, ${esc(d.upstream_river)})`).addTo(S.layers.flows);
+  }
+}
+function fmtPeople(n) { return n == null ? "–" : n >= 1e6 ? (n / 1e6).toFixed(1) + " million" : n >= 1000 ? Math.round(n / 1000) + ",000" : String(n); }
+function renderImpact() {
+  if (!S.live) return;
+  const vs = Object.entries(S.live.villages);
+  const zone = vs.filter(([, d]) => d.level === "warning" || d.level === "evacuate").reduce((a, [, d]) => a + (d.people_zone || 0), 0);
+  const water = vs.reduce((a, [, d]) => a + (d.people_water || 0), 0);
+  const top = vs.filter(([, d]) => d.people_water > 0).sort((a, b) => b[1].people_water - a[1].people_water).slice(0, 4);
+  const moving = new Set(S.live.flows.map((f) => f.to)).size;
+  $("impactLine").innerHTML = `People living in danger zones (Warning+): <b>${fmtPeople(zone)}</b> · living under flood water seen by NASA: <b>${fmtPeople(water)}</b>` +
+    (top.length ? ` (${top.map(([id, d]) => `${esc(VMAP[id].name)} ${fmtPeople(d.people_water)}`).join(", ")})` : "") +
+    ` · places the flood may reach next: <b>${moving}</b><div class="muted small">Estimates from NASA SEDAC population (2020) and NASA flood maps; arrival times are rough.</div>`;
 }
 function renderBadges() {
   const b = $("srcBadge"), n = $("nasaBadge");
@@ -584,13 +742,14 @@ function renderBadges() {
   else if (S.wx && S.wx.ok) { b.textContent = `LIVE rain & river · ${fmtTime(S.wx.t)}${S.wx.stale ? " (cached)" : ""}`; b.className = "badge live"; }
   else { b.textContent = S.wx ? "Weather data offline" : "Weather…"; b.className = "badge off"; }
   if (S.nasaStatus === "loading") { n.textContent = "NASA satellite: loading…"; n.className = "badge"; }
-  else if (S.nasaStatus === "ok") { n.textContent = S.replay ? `NASA REPLAY · ${S.replay}` : "NASA satellite · live"; n.className = "badge " + (S.replay ? "replay" : "live"); }
+  else if (S.nasaStatus === "ok") { n.textContent = S.replay ? `NASA REPLAY · ${S.replay}` : `NASA satellite · live${S.radarStatus === "loading" ? " · radar loading…" : S.radarStatus === "ok" ? " · radar ✓" : ""}`; n.className = "badge " + (S.replay ? "replay" : "live"); }
   else { n.textContent = "NASA data unavailable"; n.className = "badge off"; }
 }
 function satCell(d) {
   if (!d.nasa_ok) return '<span class="muted">–</span>';
   if ((d.nasa_flood_px || 0) >= 3 && d.nasa_flood_frac >= 0.01) return `<span class="satv flood">flood water ${(d.nasa_flood_frac * 100).toFixed(0)}%</span>`;
-  if (d.nasa_cloud_frac > 0.6) return '<span class="satv cloud">cloudy / no view</span>';
+  if ((d.radar_new_px || 0) >= 4 && d.radar_new_frac >= 0.03) return `<span class="satv flood">radar: new water ${(d.radar_new_frac * 100).toFixed(0)}%</span>`;
+  if (d.nasa_cloud_frac > 0.6 && !d.radar_ok) return '<span class="satv cloud">cloudy / no view</span>';
   return '<span class="satv">no flood seen</span>';
 }
 function renderRiskTable() {
@@ -604,7 +763,7 @@ function renderRiskTable() {
       <td>${d.replay ? "–" : `${d.rain_24h ?? "–"} mm<div class="sub">max ${d.rain_max_1h ?? "–"}/h</div>`}</td>
       <td>${d.replay ? "–" : d.river_ratio != null ? d.river_ratio + "×" : "n/a"}</td>
       <td>${satCell(d)}${nasaSub}</td>
-      <td><span class="lvl ${d.level}">${d.score} ${d.level.toUpperCase()}</span>${d.test ? '<span class="test">TEST</span>' : ""}${d.replay ? '<span class="rpl">REPLAY</span>' : ""}<div class="sub">${d.score > 0 ? "by " + d.driver : ""}</div></td></tr>`;
+      <td><span class="lvl ${d.level}">${d.score} ${d.level.toUpperCase()}</span>${d.test ? '<span class="test">TEST</span>' : ""}${d.replay ? '<span class="rpl">REPLAY</span>' : ""}<div class="sub">${d.score > 0 ? "by " + esc(DRIVER_NAMES[d.driver] || d.driver) + (d.driver === "upstream" ? ` (≈ ${d.upstream_hours} h)` : "") : ""}</div></td></tr>`;
   }).join("");
 }
 $("riskBody").addEventListener("click", (e) => {
@@ -681,4 +840,5 @@ setInterval(() => { if (S.tab === "rescue" && Rescue.list().length) Rescue.rende
   });
   refreshLive();
   drawEvents();
+  if ("serviceWorker" in navigator && window.isSecureContext) navigator.serviceWorker.register("sw.js").catch(() => {});
 })();

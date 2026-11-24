@@ -93,6 +93,27 @@ Sindh red from real satellite data, and the live demo makes the judges' own phon
   ntfy.sh relay on a random room code) or on a laptop (`python server.py`, standard library only, with a built-in
   relay) for the live pitch on a private hotspot.
 
+## More than one kind of flood
+
+- **Six flood types**, each with its own warning sign: river floods (GloFAS 7 days ahead), flash floods and cloudbursts
+  (rain, stronger in steep valleys), city flooding (stronger in Karachi, Lahore, Rawalpindi…), glacial lake outbursts
+  (heatwaves in Gilgit-Baltistan and Chitral), hill torrents (rain in the Koh-e-Suleman, Kirthar and Bolan hills) and
+  coastal storms (wind gusts at Karachi, Thatta, Badin).
+- **Where the flood goes next:** 49 river links carry danger downstream with rough arrival times, shown as moving lines
+  on the map, and places downstream are warned automatically ("flood water from Mingora in about 8 hours").
+- **NASA radar** (Sentinel-1, NASA JPL OPERA) sees new water through clouds and at night.
+- **People affected:** NASA SEDAC population data estimates people in danger zones and under flood water.
+
+## Help without the app, and without internet
+
+- **SMS help line:** any phone, even a keypad phone with no internet, texts "MADAD Dadu 5 zakhmi"; an SMS-gateway phone
+  passes it to the laptop and it enters the rescue queue with place, people and needs.
+- **Report someone else:** neighbours with the app report people who need help.
+- **No answer = check on them:** warned phones that do not reply in a danger area are added to the rescue list.
+- **No connection:** no phone can receive a new alert with no network at all, so Khabardar warns early and uses every
+  connection that still works: internet, a local Wi-Fi network with no internet (laptop edition), or SMS. Answers and
+  reports are saved on the phone and sent automatically when the signal returns, and the app opens offline.
+
 ## What is new (Innovation)
 
 The full chain in one tool: live forecasts **and NASA satellites** → place-level risk → every phone rings → proof
@@ -127,9 +148,10 @@ the control room, delivery by SMS and voice call, and setup and training for the
 ## Disclosure: APIs, libraries and AI assistants
 
 - **APIs and data:** Open-Meteo Forecast API and Flood API (CC BY 4.0); GloFAS river discharge, Copernicus
-  Emergency Management Service; NASA GIBS (MODIS and VIIRS flood products from LANCE, GPM IMERG, SMAP L4, SEDAC
-  flood hazard, VIIRS true colour); NASA EONET; OpenStreetMap tiles; Google Maps directions links (no API).
-- **Libraries:** Leaflet 1.9.4; qrcodejs 1.0.0; Python 3 standard library.
+  Emergency Management Service; NASA GIBS (MODIS and VIIRS flood products from LANCE, GPM IMERG, SMAP L4, NASA JPL
+  OPERA DSWx-S1 and RTC-S1 from Copernicus Sentinel-1 radar, SEDAC population 2020, SEDAC flood and landslide hazard,
+  VIIRS snow cover and true colour); NASA EONET; OpenStreetMap tiles; Google Maps directions links (no API).
+- **Libraries:** Leaflet 1.9.4 and qrcodejs 1.0.0 (both bundled); Python 3 standard library.
 - **Services:** ntfy.sh public relay (online edition); Hugging Face Spaces (hosting); GitHub.
 - **AI assistant:** Claude (Anthropic), used for background research, brainstorming and comparing project ideas,
   writing the app code, and drafting the README and pitch materials. No AI model runs inside the app.

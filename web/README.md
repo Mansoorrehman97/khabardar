@@ -18,6 +18,9 @@ Capital Youth Expo 2026 · Hackathon 04-HK · Track 4.
   About 85 dummy phones (labelled DUMMY) are built in, so it can be tried without real phones.
   **Automatic mode** sends alerts when a place reaches Warning (after a 10-second countdown that can be cancelled)
   and sends the nearest available rescue team to help requests; everything can also be done manually.
+  It watches six flood types, shows where the flood goes next with arrival times, uses NASA radar through clouds,
+  estimates people affected (NASA SEDAC), and takes help requests by SMS, from neighbours' reports and from
+  phones that do not answer.
 - **Phones:** scan the QR code → `phone.html?room=…` → choose Urdu or English and a place → **Turn ON Khabardar**.
 
 This edition runs entirely in the browser:

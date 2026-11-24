@@ -18,7 +18,13 @@ const T = {
     gpsNot: "Location not shared — rescuers will search your village area.", away: "{km} km away",
     nasaClear: "NASA satellite: no flood water seen near you", nasaFlood: "NASA satellite: flood water seen near you", nasaCloud: "NASA satellite: cloudy, no clear view",
     sending: "Sending…", sentOk: "Your answer reached the control room.", sendFail: "Could not send — check your internet and tap Try again.", retry: "Try again",
-    why: "WHY", autoWhy: "AUTOMATIC WARNING — WHY" },
+    why: "WHY", autoWhy: "AUTOMATIC WARNING — WHY",
+    reportOpen: "Report people who need help", reportTitle: "Report people who need help",
+    reportIntro: "For neighbours or anyone without Khabardar. The control room will send a rescue team.",
+    reportWhere: "Where are they?", reportHere: "They are near me (use my location)", reportPeople: "How many people?",
+    reportNote: "Landmark or names (optional)", reportSend: "Send report", reportOk: "Report sent — the control room can see it. Thank you.",
+    savedOffline: "No connection — saved on this phone. It will be sent automatically when the signal returns.",
+    outboxWaiting: "{n} message(s) waiting for the signal — they will be sent automatically." },
   ur: { tagline: "سیلاب کی وارننگ آپ کے فون پر — آپ کی زبان میں، پانی آنے سے پہلے۔", langLabel: "زبان",
     villageLabel: "آپ کا گاؤں / شہر", familyLabel: "گھر والوں کا گاؤں بھی دیکھیں (اختیاری)", nameLabel: "آپ کا نام (اختیاری)",
     gps: "میری درست جگہ امدادی ٹیموں کو بتائیں", start: "خبردار آن کریں",
@@ -36,7 +42,13 @@ const T = {
     gpsNot: "جگہ نہیں بتائی گئی — امدادی ٹیم آپ کے گاؤں کے علاقے میں تلاش کرے گی۔", away: "{km} کلومیٹر دور",
     nasaClear: "ناسا سیٹلائٹ: آپ کے قریب سیلابی پانی نظر نہیں آیا", nasaFlood: "ناسا سیٹلائٹ: آپ کے قریب سیلابی پانی نظر آیا", nasaCloud: "ناسا سیٹلائٹ: بادل ہیں، صاف منظر نہیں",
     sending: "بھیجا جا رہا ہے…", sentOk: "آپ کا جواب کنٹرول روم تک پہنچ گیا۔", sendFail: "نہیں بھیجا جا سکا — انٹرنیٹ چیک کریں اور دوبارہ کوشش کریں۔", retry: "دوبارہ کوشش کریں",
-    why: "وجہ", autoWhy: "خودکار وارننگ — وجہ" },
+    why: "وجہ", autoWhy: "خودکار وارننگ — وجہ",
+    reportOpen: "مدد کے محتاج لوگوں کی اطلاع دیں", reportTitle: "مدد کے محتاج لوگوں کی اطلاع دیں",
+    reportIntro: "پڑوسیوں یا ان لوگوں کے لیے جن کے پاس خبردار نہیں۔ کنٹرول روم امدادی ٹیم بھیجے گا۔",
+    reportWhere: "وہ کہاں ہیں؟", reportHere: "وہ میرے قریب ہیں (میری جگہ استعمال کریں)", reportPeople: "کتنے لوگ ہیں؟",
+    reportNote: "نشانی یا نام (اختیاری)", reportSend: "اطلاع بھیجیں", reportOk: "اطلاع بھیج دی گئی — کنٹرول روم اسے دیکھ سکتا ہے۔ شکریہ۔",
+    savedOffline: "رابطہ نہیں — پیغام اس فون میں محفوظ ہے۔ سگنل آتے ہی خود بخود بھیج دیا جائے گا۔",
+    outboxWaiting: "{n} پیغام سگنل کے انتظار میں ہیں — خود بخود بھیج دیے جائیں گے۔" },
 };
 const RTL = { ur: true, en: false };
 const $ = (id) => document.getElementById(id);
@@ -54,7 +66,7 @@ let alertActive = false, sirenMuted = false, cycleTimer = null, wakeLock = null,
 
 function save() { settings.lang = lang; localStorage.setItem("khabardar", JSON.stringify(settings)); }
 function t(k, vars) { let s = (T[lang] && T[lang][k]) || T.en[k] || k; if (vars) for (const [a, b] of Object.entries(vars)) s = s.replace("{" + a + "}", b); return s; }
-function show(id) { ["setup", "idle", "alert", "done"].forEach((s) => ($(s).hidden = s !== id)); window.scrollTo(0, 0); }
+function show(id) { ["setup", "idle", "alert", "done", "report"].forEach((s) => ($(s).hidden = s !== id)); window.scrollTo(0, 0); }
 function vName(v) { return RTL[lang] ? v.name_ur || v.name : v.name; }
 
 function applyLang() {
@@ -72,8 +84,9 @@ function fillVillageSelects() {
   const label = (v) => (RTL[lang] ? `${v.name_ur} — ${v.name}` : `${v.name} (${v.district})`);
   const opts = Object.entries(groups).map(([p, vs]) => `<optgroup label="${escHtml(RTL[lang] ? PROVINCE_UR[p] : PROVINCE_NAMES[p])}">${vs.map((v) => `<option value="${v.id}">${escHtml(label(v))}</option>`).join("")}</optgroup>`).join("");
   const sel = $("village").value || settings.village || "mingora", fam = $("family").value || settings.family || "";
-  $("village").innerHTML = opts; $("family").innerHTML = `<option value="">—</option>` + opts;
-  $("village").value = VMAP[sel] ? sel : "mingora"; $("family").value = VMAP[fam] ? fam : "";
+  const rsel = $("rVillage").value || settings.village || "mingora";
+  $("village").innerHTML = opts; $("family").innerHTML = `<option value="">—</option>` + opts; $("rVillage").innerHTML = opts;
+  $("village").value = VMAP[sel] ? sel : "mingora"; $("family").value = VMAP[fam] ? fam : ""; $("rVillage").value = VMAP[rsel] ? rsel : "mingora";
 }
 
 // ------------------------------------------------------------- sound: siren + voice
@@ -149,14 +162,42 @@ function endAlertSound() {
   if (navigator.vibrate) navigator.vibrate(0);
 }
 
-// ------------------------------------------------------------- relay
-function send(obj) { return publish(settings.room, Object.assign({ pid: settings.id }, obj)); }
+// ------------------------------------------------------------- relay (with an outbox for when there is no signal)
+function outbox() { try { return JSON.parse(localStorage.getItem("kh_outbox") || "[]"); } catch (e) { return []; } }
+function saveOutbox(list) { localStorage.setItem("kh_outbox", JSON.stringify(list.slice(-50))); renderOutbox(); }
+function renderOutbox() {
+  const n = outbox().length, el = $("outboxNote");
+  el.hidden = !n; el.textContent = n ? t("outboxWaiting", { n }) : "";
+}
+async function send(obj) {
+  const msg = Object.assign({ pid: settings.id, t: Date.now() / 1000 }, obj);
+  if (navigator.onLine !== false && await publish(settings.room, msg)) return true;
+  if (msg.type !== "ack") saveOutbox(outbox().concat([{ room: settings.room, msg }]));   // receipts are not worth queueing
+  return false;
+}
+let flushing = false;
+async function flushOutbox() {
+  const list = outbox();
+  if (!list.length || flushing || navigator.onLine === false) return;
+  flushing = true;
+  const left = [];
+  for (const item of list) if (!(await publish(item.room, item.msg))) left.push(item);
+  flushing = false;
+  saveOutbox(left);
+  if (list.length > left.length && !$("done").hidden && lastAnswer && !left.some((i) => i.msg.type === "respond")) {
+    $("gpsNote").textContent = lastAnswer.status === "help" ? t(coords ? "gpsShared" : "gpsNot") : t("sentOk");
+    $("retryBtn").hidden = true;
+  }
+}
+window.addEventListener("online", flushOutbox);
+setInterval(flushOutbox, 15000);
 function connect() {
   if (es) es.close();
   setConn("connecting");
   es = subscribe(settings.room, "15m", onRelay, setConn);
 }
 function setConn(state) {
+  if (state === "ok") flushOutbox();
   $("conn").className = "conn " + (state === "ok" ? "ok" : state === "bad" ? "bad" : "");
   $("connText").textContent = state === "ok" ? t("connected") : state === "bad" ? t("offline") : t("connecting");
 }
@@ -253,7 +294,7 @@ async function sendAnswer() {
   const body = { type: "respond", alert_id: a.alert_id, status, village: a.village.id };
   if (coords) { body.lat = coords.lat; body.lon = coords.lon; }
   const ok = await send(body);
-  if (!ok) { $("gpsNote").textContent = t("sendFail"); $("retryBtn").hidden = false; return; }
+  if (!ok) { $("gpsNote").textContent = t("savedOffline"); $("retryBtn").hidden = false; return; }
   $("gpsNote").textContent = status === "help" ? t(coords ? "gpsShared" : "gpsNot") : t("sentOk");
 }
 $("peopleOpts").addEventListener("click", (e) => {
@@ -270,7 +311,7 @@ $("sendDetails").addEventListener("click", async () => {
   const ok = await send(body);
   $("sendDetails").disabled = false;
   if (ok) { $("sendDetails").hidden = true; $("detailsDone").hidden = false; }
-  else $("gpsNote").textContent = t("sendFail");
+  else { $("gpsNote").textContent = t("savedOffline"); $("sendDetails").hidden = true; }
 });
 $("retryBtn").addEventListener("click", sendAnswer);
 function renderRescue() {
@@ -330,6 +371,37 @@ $("startBtn").addEventListener("click", async () => {
   renderIdle(); show("idle"); connect();
   if (!ok) setConn("bad");
 });
+// ------------------------------------------------------------- report other people who need help
+let report = { people: 0 };
+function openReport() {
+  report = { people: 0 };
+  document.querySelectorAll("#rPeople button, #rNeeds button").forEach((b) => b.classList.remove("on"));
+  $("rNote").value = ""; $("rDone").hidden = true; $("rSend").hidden = false;
+  $("rVillage").value = settings.village || "mingora";
+  $("rGpsWrap").hidden = !(window.isSecureContext && navigator.geolocation);
+  show("report");
+}
+$("reportBtn").addEventListener("click", openReport);
+$("reportBtn2").addEventListener("click", openReport);
+$("rBack").addEventListener("click", () => { show("idle"); renderIdle(); });
+$("rPeople").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  document.querySelectorAll("#rPeople button").forEach((x) => x.classList.toggle("on", x === b));
+  report.people = +b.dataset.n;
+});
+$("rNeeds").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; b.classList.toggle("on"); report[b.dataset.k] = b.classList.contains("on"); });
+$("rSend").addEventListener("click", async () => {
+  if (!settings.room) return;
+  $("rSend").disabled = true; $("rDone").hidden = false; $("rDone").textContent = t("sending");
+  let g = null;
+  if (!$("rGpsWrap").hidden && $("rGps").checked) { const keep = settings.gps; settings.gps = true; g = await freshGps(5000); settings.gps = keep; }
+  const rid = Math.random().toString(36).slice(2, 10);
+  const ok = await send(Object.assign({ type: "report", rid, name: settings.name, village: $("rVillage").value, people: report.people || 1,
+    note: $("rNote").value.trim().slice(0, 80), lat: g ? g.lat : null, lon: g ? g.lon : null }, report));
+  $("rSend").disabled = false; $("rSend").hidden = true;
+  $("rDone").textContent = ok ? t("reportOk") : t("savedOffline");
+});
+
 $("testSound").addEventListener("click", async () => { unlockAudio(); startSiren(); await sleep(3700); stopSiren(); });
 $("changeBtn").addEventListener("click", () => show("setup"));
 $("safeBtn").addEventListener("click", () => respond("safe"));
@@ -344,5 +416,8 @@ setInterval(() => { if (!$("idle").hidden) refreshRisk(); }, 15 * 60 * 1000);
   if (window.isSecureContext && navigator.geolocation) { $("gpsWrap").hidden = false; $("useGps").checked = settings.gps !== false; }
   if (!settings.room) { $("noRoom").hidden = false; $("startBtn").disabled = true; $("startBtn").style.opacity = 0.5; }
   applyLang();
+  renderOutbox();
   show("setup");
+  // keep a copy of the app on the phone, so it opens even without internet (works on https and on this laptop)
+  if ("serviceWorker" in navigator && window.isSecureContext) navigator.serviceWorker.register("sw.js").catch(() => {});
 })();
