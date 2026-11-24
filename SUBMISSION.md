@@ -8,8 +8,9 @@ Paste-ready answers for the Capital Youth Expo 2026 submission (Hackathon 04-HK)
 | Item | Link | Status |
 |---|---|---|
 | Public code repository (with README and disclosure) | https://github.com/Mansoorrehman97/khabardar | Ready |
-| Live deployment (control room) | https://mansoorrn-khabardar.static.hf.space/dashboard.html | Ready |
-| Start page | https://mansoorrn-khabardar.static.hf.space | Ready |
+| Live deployment (control room) | https://khabardar-pearl.vercel.app/dashboard.html | Ready |
+| Start page | https://khabardar-pearl.vercel.app | Ready |
+| Mirror of the same app | https://mansoorrn-khabardar.static.hf.space | Ready |
 | Hugging Face Space page | https://huggingface.co/spaces/Mansoorrn/khabardar | Ready |
 | Demo video (2 minutes or less) | *add link* | To do |
 | Pitch deck (PDF or PPTX) | *add link or upload file* | To do |
@@ -89,7 +90,7 @@ Sindh red from real satellite data, and the live demo makes the judges' own phon
 - **Alerts:** the control room sends a short message; each phone builds the warning in its language, plays a Web
   Audio siren and speaks it with the phone's text-to-speech (or recorded audio), and sends back receipts, answers
   and help details. The rescue status flows back to the phone.
-- **One app, two editions:** the same web pages run online (free Hugging Face static Space, messages through the
+- **One app, two editions:** the same web pages run online (free static hosting on Vercel or Hugging Face, messages through the
   ntfy.sh relay on a random room code) or on a laptop (`python server.py`, standard library only, with a built-in
   relay) for the live pitch on a private hotspot.
 
@@ -165,13 +166,13 @@ the control room, delivery by SMS and voice call, and setup and training for the
   OPERA DSWx-S1 and RTC-S1 from Copernicus Sentinel-1 radar, SEDAC population 2020, SEDAC flood and landslide hazard,
   VIIRS snow cover and true colour); NASA EONET; OpenStreetMap tiles; Google Maps directions links (no API).
 - **Libraries:** Leaflet 1.9.4 and qrcodejs 1.0.0 (both bundled); Python 3 standard library.
-- **Services:** ntfy.sh public relay (online edition); Hugging Face Spaces (hosting); GitHub.
+- **Services:** ntfy.sh public relay (online edition); Vercel and Hugging Face Spaces (hosting); GitHub.
 - **AI assistant:** Claude (Anthropic), used for background research, brainstorming and comparing project ideas,
   writing the app code, and drafting the README and pitch materials. No AI model runs inside the app.
 
 ## How judges can try it
 
-1. Open the control room on a laptop: https://mansoorrn-khabardar.static.hf.space/dashboard.html
+1. Open the control room on a laptop: https://khabardar-pearl.vercel.app/dashboard.html
 2. No phone needed: in **Map layers → NASA date**, choose **NASA replay: 30 Aug 2022** and wait. Automatic mode
    alerts 14 places by itself; open the **Phone wall** and **Rescue queue** tabs to see phones ringing and teams
    being sent.

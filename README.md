@@ -5,8 +5,9 @@
 
 ## Project links
 
-- **Live app (control room):** [mansoorrn-khabardar.static.hf.space/dashboard.html](https://mansoorrn-khabardar.static.hf.space/dashboard.html)
-- **Start page:** [mansoorrn-khabardar.static.hf.space](https://mansoorrn-khabardar.static.hf.space)
+- **Live app (control room):** [khabardar-pearl.vercel.app/dashboard.html](https://khabardar-pearl.vercel.app/dashboard.html)
+- **Start page:** [khabardar-pearl.vercel.app](https://khabardar-pearl.vercel.app)
+- **Mirror (same app, if one host is slow):** [mansoorrn-khabardar.static.hf.space](https://mansoorrn-khabardar.static.hf.space)
 - **Phones:** scan the QR code shown in the control room (it opens `phone.html?room=…`)
 - **Hugging Face Space:** [huggingface.co/spaces/Mansoorrn/khabardar](https://huggingface.co/spaces/Mansoorrn/khabardar)
 - **Source code:** [github.com/Mansoorrehman97/khabardar](https://github.com/Mansoorrehman97/khabardar)
@@ -47,7 +48,7 @@ the automatic rules would be agreed with the disaster management authority (PDMA
 
 ## Try it in one minute (no phone needed)
 
-1. Open the **[control room](https://mansoorrn-khabardar.static.hf.space/dashboard.html)** on a laptop. About 85 **dummy phones** across Pakistan are already loaded (labelled DUMMY), and **Automatic mode** is ON.
+1. Open the **[control room](https://khabardar-pearl.vercel.app/dashboard.html)** on a laptop. About 85 **dummy phones** across Pakistan are already loaded (labelled DUMMY), and **Automatic mode** is ON.
 2. In **Map layers → NASA date**, choose **NASA replay: 30 Aug 2022**. NASA's satellite flood map of the 2022 floods appears in blue, and Sukkur, Dadu, Larkana, Mehar, Jacobabad and others turn red.
 3. **Do nothing.** After a 10-second countdown, Khabardar sends EVACUATE to 10 places and WARNING to 4 more by itself. Open the **Phone wall** tab: each dummy phone rings with the warning in its language; click one to see its screen.
 4. Open the **Rescue queue**: people asking for help are ranked by urgency, and the best available team is sent automatically after 5 seconds (press **Hold** to decide yourself). Press **Mark rescued** when done.
@@ -197,7 +198,7 @@ and "rescued". The phone writes the warning text itself in its language, so only
 | Edition | How | Messages travel through | Best for |
 |---|---|---|---|
 | **Local network** | `python server.py` | The laptop itself (built-in relay), no internet relay | **The live pitch**, on your own hotspot |
-| **Online** | `web/` on any static host (Hugging Face) | The free public **ntfy.sh** relay, on a random room code | **The live link** |
+| **Online** | `web/` on any static host (Vercel, Hugging Face) | The free public **ntfy.sh** relay, on a random room code | **The live link** |
 
 Live data (Open-Meteo, NASA) is fetched by each browser in both editions, so the hotspot needs internet.
 
@@ -333,7 +334,7 @@ added to `web/audio/`). No AI-generated images are used.
 - **qrcodejs** 1.0.0 (QR code in the control room, MIT, bundled in `web/vendor/`)
 - **Google Maps** directions links for routes (a plain link, no API)
 - **ntfy.sh** public relay (online edition only)
-- **Hugging Face Spaces** (free static hosting)
+- **Vercel** (free Hobby plan, static hosting of `web/`, redeploys on every push to GitHub) and **Hugging Face Spaces** (free static hosting, mirror)
 - Python 3 standard library only for the local server (no extra packages)
 - **AI assistant:** Claude (Anthropic), as described above
 
@@ -406,6 +407,8 @@ and passes it, with the number partly hidden, to every control room active in th
 
 ## Other hosting
 
+- **Vercel** (what the live link uses): import the GitHub repository, set **Root Directory** to `web`, preset **Other**, no build
+  command. Every push to `main` redeploys it.
 - `Dockerfile`: for hosts that run containers (for example a Hugging Face PRO Docker Space). It reads the `PORT` variable.
 - `render.yaml`: ready for Render (**New → Blueprint**). Render asks for a payment card even for its free plan,
   and the free plan sleeps after about 15 minutes without visitors.
@@ -416,7 +419,7 @@ and passes it, with the number partly hidden, to every control room active in th
 khabardar-demo/
   server.py                 # local network edition: serves web/ and a built-in message relay (standard library only)
   config.json               # port, optional SMS gateway
-  web/                      # the app (also the online edition, uploaded to Hugging Face as is)
+  web/                      # the app (also the online edition, served as is by Vercel and Hugging Face)
     index.html              # start page
     dashboard.html          # control room
     phone.html              # phone / PC receiver
