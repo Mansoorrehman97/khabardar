@@ -25,6 +25,6 @@ This edition runs entirely in the browser:
   The free relay has rate limits; for the live pitch, the local Python server version (in the GitHub repo) is the most reliable.
 - Simulated phones and TEST scenarios are clearly labelled and only exist on the control room screen.
 
-Full source, the local server version and documentation: see the GitHub repository.
+Full source, the local server version and documentation: https://github.com/Mansoorrehman97/khabardar
 Disclosure: Leaflet, OpenStreetMap tiles, qrcodejs, Open-Meteo, GloFAS (Copernicus EMS), ntfy.sh;
 Claude (Anthropic) was used as an AI coding assistant.
