@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Khabardar — demo video</title>
+<meta name="description" content="Khabardar demo video: flood warning on every phone, in Urdu or English, before the water comes.">
+<style>
+  :root { --navy: #0c1a2a; --panel: #14263a; --fg: #eef3f8; --soft: #a9b8c8; --orange: #f0592a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--navy); color: var(--fg); font: 16px/1.6 "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 28px max(16px, env(safe-area-inset-left)) 48px max(16px, env(safe-area-inset-right)); display: grid; gap: 18px; }
+  header { display: flex; align-items: center; gap: 14px; }
+  .logo { width: 44px; height: 44px; border-radius: 50%; background: var(--orange); color: var(--navy); display: grid; place-items: center; font-weight: 800; font-size: 26px; flex: none; }
+  h1 { margin: 0; font-size: clamp(22px, 4vw, 32px); letter-spacing: .04em; }
+  .sub { margin: 0; color: var(--soft); }
+  video { width: 100%; border-radius: 14px; background: #000; border: 1px solid #2b4058; aspect-ratio: 16 / 9; }
+  .links { display: flex; flex-wrap: wrap; gap: 10px; }
+  .links a { color: var(--navy); background: var(--orange); text-decoration: none; font-weight: 600; padding: 10px 16px; border-radius: 10px; }
+  .links a.ghost { background: var(--panel); color: var(--fg); border: 1px solid #2b4058; }
+  .links a:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+  .note { color: var(--soft); font-size: 14px; margin: 0; }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header><div class="logo" aria-hidden="true">!</div><div><h1>KHABARDAR · Demo video</h1><p class="sub">Flood warning on every phone, in Urdu or English, before the water comes. (1 min 37 s)</p></div></header>
+  <video controls playsinline preload="metadata" poster="demo/poster.jpg">
+    <source src="demo/Khabardar-Demo-Video.mp4" type="video/mp4">
+    Your browser cannot play this video. <a href="demo/Khabardar-Demo-Video.mp4">Open the video file</a>.
+  </video>
+  <div class="links">
+    <a href="dashboard.html">Open the live control room</a>
+    <a class="ghost" href="index.html">Start page</a>
+    <a class="ghost" href="https://github.com/Mansoorrehman97/khabardar" target="_blank" rel="noopener">Source code on GitHub</a>
+  </div>
+  <p class="note">Recorded from the real app. The heavy-rain scenario is a labelled TEST, replays use real past data and are labelled REPLAY, and dummy phones are labelled DUMMY. Capital Youth Expo 2026 · Hackathon 04-HK.</p>
+</main>
+</body>
+</html>

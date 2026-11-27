@@ -1,7 +1,7 @@
 /* Khabardar offline helper: keeps a copy of the app on the phone/laptop so it still opens without internet.
    Always tries the network first (so updates arrive), and uses the saved copy only when there is no connection.
    Messages (the relay) and live data are never cached. */
-const CACHE = "khabardar-v5";
+const CACHE = "khabardar-v6";
 const SHELL = ["./", "index.html", "phone.html", "dashboard.html", "css/phone.css", "css/dashboard.css",
   "js/config.js", "js/safepoints.js", "js/villages.js", "data/replay-2025-08-punjab.json", "js/nasa-colormaps.js", "js/common.js", "js/nasa.js", "js/phone.js",
   "js/dashboard.js", "js/dummies.js", "js/rescue.js", "vendor/leaflet.js", "vendor/leaflet.css", "vendor/qrcode.min.js"];
@@ -16,7 +16,7 @@ self.addEventListener("activate", (e) => {
 });
 self.addEventListener("fetch", (e) => {
   const u = new URL(e.request.url);
-  if (e.request.method !== "GET" || u.origin !== self.location.origin || u.pathname.includes("/relay/")) return;
+  if (e.request.method !== "GET" || u.origin !== self.location.origin || u.pathname.includes("/relay/") || u.pathname.includes("/demo/")) return;   // never store the demo video on phones
   e.respondWith(
     fetch(e.request)
       .then((r) => { if (r.ok) { const copy = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); } return r; })

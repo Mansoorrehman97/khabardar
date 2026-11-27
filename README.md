@@ -7,6 +7,8 @@
 
 - **Live app (control room):** [khabardar-pearl.vercel.app/dashboard.html](https://khabardar-pearl.vercel.app/dashboard.html)
 - **Start page:** [khabardar-pearl.vercel.app](https://khabardar-pearl.vercel.app)
+- **Demo video (1 min 37 s):** [khabardar-pearl.vercel.app/video.html](https://khabardar-pearl.vercel.app/video.html)
+- **Pitch deck (PDF):** [khabardar-pearl.vercel.app/docs/Khabardar-Pitch-Deck.pdf](https://khabardar-pearl.vercel.app/docs/Khabardar-Pitch-Deck.pdf)
 - **Mirror (same app, if one host is slow):** [mansoorrn-khabardar.static.hf.space](https://mansoorrn-khabardar.static.hf.space)
 - **Phones:** scan the QR code shown in the control room (it opens `phone.html?room=…`)
 - **Hugging Face Space:** [huggingface.co/spaces/Mansoorrn/khabardar](https://huggingface.co/spaces/Mansoorrn/khabardar)
@@ -417,6 +419,8 @@ khabardar-demo/
     index.html              # start page
     dashboard.html          # control room
     phone.html              # phone / PC receiver
+    video.html              # demo video page (demo/Khabardar-Demo-Video.mp4)
+    docs/                   # pitch deck (PDF)
     js/config.js            # relay setting (server.py replaces it with the local relay)
     js/villages.js          # 58 places, flood types, river paths and rescue teams
     js/safepoints.js        # suggested safe points and Rescue 1122 stations (OpenStreetMap + elevation)
