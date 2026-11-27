@@ -11,10 +11,6 @@
 - **Phones:** scan the QR code shown in the control room (it opens `phone.html?room=…`)
 - **Hugging Face Space:** [huggingface.co/spaces/Mansoorrn/khabardar](https://huggingface.co/spaces/Mansoorrn/khabardar)
 - **Source code:** [github.com/Mansoorrehman97/khabardar](https://github.com/Mansoorrehman97/khabardar)
-<!-- Add before submitting:
-- **Demo video (2 min):** [watch](VIDEO-LINK)
-- **Slides:** [view](DECK-LINK)
--->
 
 Capital Youth Expo 2026 · Hackathon 04-HK · Track 4: Smart Agriculture & Climate
 
@@ -35,8 +31,8 @@ It works **automatically**: when a place reaches Warning, the control room count
 can cancel) and sends the alert by itself, and it sends the best available rescue team to each person who asks for
 help. Every step can also be done **manually**.
 
-This is a hackathon demo. The risk score is a simple, transparent rule, not a calibrated forecast. In real use,
-the automatic rules would be agreed with the disaster management authority (PDMA / NDMA / Rescue 1122).
+This is a hackathon demo. The risk score is a simple, transparent rule, tuned on one monsoon (2025), not an official
+forecast. In real use, the automatic rules would be agreed with the disaster management authority (PDMA / NDMA / Rescue 1122).
 
 ## What it does
 
@@ -80,7 +76,6 @@ the automatic rules would be agreed with the disaster management authority (PDMA
 | Places | `web/js/villages.js`: 58 places in KP, Gilgit-Baltistan, AJK, Punjab, Sindh and Balochistan | Who gets warned |
 | Safe points and Rescue 1122 stations | **OpenStreetMap** (Overpass API, ODbL) + **Open-Meteo Elevation API** (Copernicus DEM) → `web/js/safepoints.js` | Highest named school / college / hospital within 4 km; real stations where mapped (to be confirmed by PDMA) |
 | Past forecasts | **Open-Meteo Previous Runs API** (forecast issued ~1 day earlier) → `web/data/replay-2025-08-punjab.json` | Before-the-flood replay and the false-alarm check |
-| Upstream replay | Marala headworks flows reported by Dawn (May and December 2025) | A labelled replay of past events |
 
 The NASA numbers are read from NASA's map tiles: the app turns each pixel's colour back into a value with NASA's
 published colour keys (`web/js/nasa-colormaps.js`). No NASA account or key is needed.
@@ -155,7 +150,7 @@ in all of July–August 2025 the day-ahead forecast reached Evacuate on 2 days a
 25–26 August, the real flood), 4 at Lahore and 3 at Kasur. The first rule reached Evacuate on 13 days at Sialkot, so it was
 changed. Real thresholds must still be set with PMD and PDMA over several seasons.
 
-**Real safe points.** Safe points are no longer invented: for each place Khabardar suggests the **highest named school,
+**Real safe points.** For each place Khabardar suggests the **highest named school,
 college or hospital within 4 km** of the town centre, from OpenStreetMap and elevation data (Copernicus DEM), and shows on
 the phone how many metres higher it is. Today **36 of the 58 places** have such a real building; the other 22 keep a labelled
 placeholder because OpenStreetMap has no suitable named building there, or every candidate is lower than the town. Real
@@ -223,7 +218,7 @@ Live data (Open-Meteo, NASA) is fetched by each browser in both editions, so the
   **Download rescue list (CSV)**
 - **Phone wall**: every phone in the alert as a mini phone that rings in its language; click one to see its screen
 - **Flood risk by place** table, sortable by region, with rain, river and NASA columns
-- **Dummy phones** (about 85, labelled DUMMY), **+25 crowd** (labelled SIM), **Upstream replay**, **Reset demo**
+- **Dummy phones** (about 85, labelled DUMMY), **+25 crowd** (labelled SIM), **Fake-alert test**, **Reset demo**
 
 **Phone / PC receiver (any browser)**
 - Setup in Urdu or English: place (grouped by province), family place, name, optional GPS
@@ -287,7 +282,7 @@ Live data (Open-Meteo, NASA) is fetched by each browser in both editions, so the
 | Buner, 15 Aug 2025 (honest check) | The day-ahead forecast stayed Normal at Pir Baba and Daggar — models missed the cloudburst |
 | NASA false alarms in the dry season | MODIS alone flagged water near Skardu and Mianwali in November; VIIRS did not, so the two-product rule now keeps them at Normal |
 | NASA tile server | Sometimes answers with an error; tiles are retried and failures are not cached |
-| Risk thresholds | **Not calibrated** against past floods |
+| Risk thresholds | Tuned on one monsoon only (July–August 2025); several seasons with PMD and PDMA are needed |
 | Urdu texts | Written by the team with AI help; a careful proofread is still advised |
 
 ## Limits
@@ -405,13 +400,12 @@ The server accepts JSON `{"from": "...", "message": "..."}` (also `sender`/`phon
 and passes it, with the number partly hidden, to every control room active in the last 12 hours (or only to
 `"room"` if set in the `sms` part of `config.json`).
 
-## Other hosting
+## Hosting
 
 - **Vercel** (what the live link uses): import the GitHub repository, set **Root Directory** to `web`, preset **Other**, no build
   command. Every push to `main` redeploys it.
-- `Dockerfile`: for hosts that run containers (for example a Hugging Face PRO Docker Space). It reads the `PORT` variable.
-- `render.yaml`: ready for Render (**New → Blueprint**). Render asks for a payment card even for its free plan,
-  and the free plan sleeps after about 15 minutes without visitors.
+- **Hugging Face** (the mirror): a static Space with the contents of `web/` (`web/README.md` holds the Space settings).
+- Any other static web host works the same way: serve the `web/` folder as it is.
 
 ## Project structure
 
@@ -437,20 +431,19 @@ khabardar-demo/
     css/, audio/            # styles, optional voice recordings
     vendor/                 # Leaflet 1.9.4 and qrcodejs 1.0.0 (bundled so the control room works without internet)
     sw.js                   # keeps a copy of the app on the device so it opens offline
-  Dockerfile, render.yaml, requirements.txt   # other hosting options
 ```
 
 ## Roadmap
 
 Native Android app that rings even when locked, automatic voice calls and SMS to keypad phones on every network,
-automatic mode running on a server around the clock, "all clear" messages when the danger passes, PDMA approval workflow,
+automatic mode running on a server around the clock, PDMA approval workflow,
 cell broadcast through the PTA (reaches every phone without an app), phone-to-phone Bluetooth relay, satellite SMS,
-a hydraulic flood-routing model instead of fixed travel times, NISAR radar once its coverage of Pakistan is complete, real shelter and Rescue 1122 station lists, Sentinel-1 radar flood mapping through cloud,
-and an "Ask Khabardar" voice helper.
+a hydraulic flood-routing model instead of fixed travel times, local rain gauges and PMD weather radar for cloudbursts,
+NISAR radar once its coverage of Pakistan is complete, and official shelter and Rescue 1122 station lists.
 
 ## Sources for the figures above
 
-World Bank, *Preparing better for monsoons: lessons from the 2025 flash floods in Pakistan* (2026); PreventionWeb
-report on a survey of 1,207 households in Buner, Swat and Shangla; Government of Pakistan, UNDP, World Bank and
-partners, *Pakistan Floods 2022 Post-Disaster Needs Assessment*; Dawn reports on Chenab flows at Marala (2025).
+World Bank, [*Preparing better for monsoons: lessons from the 2025 flash floods in Pakistan*](https://www.worldbank.org/en/news/feature/2026/09/03/preparing-better-for-monsoons-lessons-from-the-2025-flash-floods-in-pakistan)
+(2026), including its survey of 1,207 households in Buner, Swat and Shangla (also on PreventionWeb); Government of
+Pakistan, UNDP, World Bank and partners, *Pakistan Floods 2022 Post-Disaster Needs Assessment*.
 NASA data: NASA EOSDIS GIBS, LANCE, GPM, SMAP and EONET.

@@ -1,6 +1,7 @@
 /* Khabardar — places watched by the demo (58 flood-prone towns and villages across Pakistan).
-   Coordinates are approximate town centres. SAFE POINTS ARE DEMO PLACEHOLDERS: a real deployment must use the
-   shelters designated by the PDMA / district administration. Rescue teams are generated per district (demo). */
+   Coordinates are approximate town centres. The safe-point names below are labelled placeholders, used only where
+   js/safepoints.js has no suitable real building from OpenStreetMap; a real deployment must use the shelters designated
+   by the PDMA / district administration. Rescue teams use real Rescue 1122 stations where mapped, otherwise demo locations. */
 
 const SAFE_NAMES = [
   ["Govt. Boys High School", "گورنمنٹ بوائز ہائی اسکول"],

@@ -20,20 +20,27 @@ Capital Youth Expo 2026 · Hackathon 04-HK · Track 4.
   and sends the nearest available rescue team to help requests; everything can also be done manually.
   It watches six flood types, shows where the flood goes next with arrival times, uses NASA radar through clouds,
   estimates people affected (NASA SEDAC), and takes help requests by SMS, from neighbours' reports and from
-  phones that do not answer.
+  phones that do not answer. Alerts are digitally signed, phones get an ALL CLEAR when the danger passes, and a
+  before-the-flood replay of August 2025 shows how early it would have warned.
 - **Phones:** scan the QR code → `phone.html?room=…` → choose Urdu or English and a place → **Turn ON Khabardar**.
 
 This edition runs entirely in the browser:
 
 - 58 flood-prone places across Pakistan. Live rain: Open-Meteo forecast API · live river discharge: GloFAS via
-  the Open-Meteo Flood API · NASA GIBS: MODIS and VIIRS flood water, GPM IMERG rain, SMAP soil moisture,
-  flood history and VIIRS true colour · NASA EONET events. NASA replays of the 30 Aug 2022 and 5 Sep 2025 floods.
+  the Open-Meteo Flood API · NASA GIBS: MODIS and VIIRS flood water, OPERA Sentinel-1 radar water, GPM IMERG rain,
+  SMAP soil moisture, SEDAC population, flood and landslide hazard, VIIRS snow cover and true colour · NASA EONET
+  events. NASA replays of the 30 Aug 2022 and 5 Sep 2025 floods.
 - Real-time messages between the control room and phones go through the free public **ntfy.sh** relay on a random
   room topic. Anyone who knows the room link can read that room's messages, so do not enter sensitive personal data.
   The free relay has rate limits; for the live pitch, the local Python server version (in the GitHub repo) is the most reliable.
 - Dummy phones, SIM phones and TEST scenarios are clearly labelled and only exist on the control room screen.
-  Safe points and rescue teams are demo placeholders.
+- Safe points are suggested from OpenStreetMap and elevation data (the highest named school, college or hospital
+  within 4 km) for 36 of the 58 places, and must be confirmed by the PDMA; the others are labelled placeholders.
+  Rescue teams use real Rescue 1122 stations where OpenStreetMap has them, otherwise demo locations.
 
 Full source, the local server version and documentation: https://github.com/Mansoorrehman97/khabardar
-Disclosure: Leaflet, OpenStreetMap tiles, qrcodejs, Open-Meteo, GloFAS (Copernicus EMS), NASA GIBS / EOSDIS
-(LANCE, GPM, SMAP, SEDAC), NASA EONET, ntfy.sh; Claude (Anthropic) was used as an AI coding assistant.
+
+Disclosure: Leaflet, qrcodejs, OpenStreetMap (tiles and Overpass API), Open-Meteo (Forecast, Flood, Previous Runs and
+Elevation APIs; Copernicus DEM), GloFAS (Copernicus EMS), NASA GIBS / EOSDIS (LANCE, GPM, SMAP, JPL OPERA, SEDAC),
+NASA EONET, ntfy.sh, Web Crypto API. Claude (Anthropic) was used as an AI assistant for research, idea comparison,
+writing the code and drafting the documentation; no AI model runs inside the app.

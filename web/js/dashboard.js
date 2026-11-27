@@ -958,19 +958,6 @@ $("csvBtn").addEventListener("click", () => {
   if (!Rescue.list().length) { toast("No help requests yet — nothing to download"); return; }
   Rescue.csv(); toast("Rescue list downloaded (CSV)");
 });
-$("replayBtn").addEventListener("click", () => {
-  $("replayModal").hidden = false;
-  const bars = [{ label: "Day before (May 2025)", v: 35600 }, { label: "Next morning (May 2025)", v: 3177 }, { label: "16 Dec 2025", v: 1800 }];
-  let svg = `<svg viewBox="0 0 780 240" width="100%" style="background:#0d1c2f;border-radius:8px">`;
-  bars.forEach((b, i) => {
-    const bh = (b.v / 36000) * 170, x = 80 + i * 240;
-    svg += `<rect x="${x}" y="${200 - bh}" width="150" height="${bh}" rx="6" fill="${i === 0 ? "#3b82c4" : "#e5383b"}"/>
-      <text x="${x + 75}" y="${192 - bh}" fill="#eef3f9" font-size="16" font-weight="700" text-anchor="middle">${b.v.toLocaleString()} cusecs</text>
-      <text x="${x + 75}" y="222" fill="#9fb1c6" font-size="13" text-anchor="middle">${b.label}</text>`;
-  });
-  $("replayChart").innerHTML = svg + `<text x="20" y="22" fill="#9fb1c6" font-size="13">Chenab flow at Marala headworks — sudden drops without notice</text></svg>`;
-});
-$("closeReplay").addEventListener("click", () => ($("replayModal").hidden = true));
 
 setInterval(() => ($("clock").textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })), 1000);
 setInterval(() => { if (!S.replay) refreshLive(); }, 15 * 60 * 1000);

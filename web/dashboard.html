@@ -56,8 +56,8 @@
         <div class="lg">Khabardar</div>
         <label><input type="checkbox" data-layer="flows" checked> Where the flood goes next (river paths &amp; arrival times)</label>
         <label><input type="checkbox" data-layer="danger" checked> Danger zones around places</label>
-        <label><input type="checkbox" data-layer="safe" checked> Safe points (demo)</label>
-        <label><input type="checkbox" data-layer="teams" checked> Rescue teams (demo)</label>
+        <label><input type="checkbox" data-layer="safe" checked> Safe points (suggested)</label>
+        <label><input type="checkbox" data-layer="teams" checked> Rescue teams</label>
       </div>
     </div>
     <div class="replay-banner" id="replayBanner" hidden></div>
@@ -173,7 +173,7 @@
           <tbody id="riskBody"></tbody>
         </table>
       </div>
-      <div class="muted small">Risk = the highest of: rain score (forecast + NASA rain, raised when NASA says the ground is wet), river-rise score (GloFAS) and satellite flood-water score (NASA). Click a place on the map for details or a TEST heavy-rain scenario.</div>
+      <div class="muted small">Risk = the highest score of each place's flood types: rain (forecast + NASA rain, raised when NASA says the ground is wet), river rise (GloFAS), hill torrents (rain upstream), glacier melt (heatwave), coastal storm (wind), flood water coming from upstream, and satellite flood water (NASA). Click a place on the map for details or a TEST heavy-rain scenario.</div>
     </div>
   </aside>
 </main>
@@ -183,20 +183,11 @@
   <div class="actions">
     <button class="mini" id="dummyBtn" title="Dummy phones across Pakistan that receive alerts and answer automatically (clearly labelled DUMMY)">Dummy phones: ON</button>
     <button class="mini" id="simBtn" title="Adds 25 clearly-labelled SIMULATED phones around the selected places (only on this screen)">+25 crowd (SIM)</button>
-    <button class="mini" id="replayBtn">Upstream replay</button>
     <button class="mini" id="fakeBtn" title="Sends an alert that is NOT signed by this control room, like an attacker would — phones must ignore it">Fake-alert test</button>
     <button class="mini danger" id="resetBtn">Reset demo</button>
   </div>
-  <div class="attrib">Rain: Open-Meteo.com (CC BY 4.0) · River discharge: GloFAS, Copernicus EMS, via Open-Meteo Flood API · NASA GIBS / EOSDIS: MODIS flood product (LANCE), GPM IMERG, SMAP L4, VIIRS · NASA EONET · Map © OpenStreetMap contributors · Relay: <span id="relayName">ntfy.sh</span></div>
+  <div class="attrib">Rain: Open-Meteo.com (CC BY 4.0) · River discharge: GloFAS, Copernicus EMS, via Open-Meteo Flood API · NASA GIBS / EOSDIS: MODIS and VIIRS flood (LANCE), OPERA Sentinel-1 radar (JPL), GPM IMERG, SMAP L4, SEDAC population, VIIRS · NASA EONET · Map and safe points © OpenStreetMap contributors · Elevation: Copernicus DEM via Open-Meteo · Relay: <span id="relayName">ntfy.sh</span></div>
 </footer>
-
-<div class="modal" id="replayModal" hidden>
-  <div class="modal-box">
-    <div class="modal-h">Upstream watch — Chenab at Marala <button class="mini" id="closeReplay">Close</button></div>
-    <p class="muted">River flow figures as reported in the news (Dawn, citing Pakistan's water authority). This is a replay of past events, not live data.</p>
-    <div id="replayChart"></div>
-  </div>
-</div>
 
 <div class="modal" id="phoneModal" hidden>
   <div class="modal-box narrow">
